@@ -1,0 +1,87 @@
+name: Model Maintenance (Scheduled Retraining)
+
+# Flujo de MANTENIMIENTO automatizado: reentrena el modelo periódicamente
+# contra el dataset actualizado, evalúa al candidato contra el modelo
+# "campeón" en producción (model/registry.json) y solo promueve / redepliega
+# si hay una mejora real de métricas. Es independiente del flujo de CI
+# (que valida cambios de código), aunque reutiliza el mismo entorno.
+on:
+  schedule:
+    # Todos los lunes a las 03:00 UTC.
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Ejecutar en modo dry-run (no promueve, no commitea)"
+        type: boolean
+        default: false
+
+jobs:
+  retrain:
+    name: Retrain and (maybe) promote model
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run maintenance pipeline
+        id: retrain
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            python retrain_pipeline.py --dry-run
+          else
+            python retrain_pipeline.py
+          fi
+
+      - name: Run regression tests against the (possibly new) production model
+        if: ${{ inputs.dry_run != true }}
+        run: pytest test_app.py -v
+
+      - name: Detect changes to production artifacts
+        if: ${{ inputs.dry_run != true }}
+        id: changes
+        run: |
+          if git status --porcelain | grep -E "model/(cardio_risk_model.joblib|registry.json|model_metadata.json|registry/)" ; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit promoted model and registry
+        if: ${{ inputs.dry_run != true && steps.changes.outputs.changed == 'true' }}
+        run: |
+          git config user.name "cardio-risk-maintenance-bot"
+          git config user.email "actions@github.com"
+          git add model/
+          git commit -m "chore(maintenance): retrain and promote new champion model [skip ci]"
+          git push
+
+      # Redespliegue automático: dispara el deploy hook de Render solo si el
+      # pipeline efectivamente promovió un nuevo modelo. Requiere configurar
+      # el secreto RENDER_DEPLOY_HOOK_URL en el repositorio.
+      - name: Trigger redeploy on Render
+        if: ${{ inputs.dry_run != true && steps.changes.outputs.changed == 'true' }}
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -n "$RENDER_DEPLOY_HOOK_URL" ]; then
+            curl -fsSL -X POST "$RENDER_DEPLOY_HOOK_URL"
+            echo "Redeploy hook triggered."
+          else
+            echo "RENDER_DEPLOY_HOOK_URL secret not set — skipping automatic redeploy."
+          fi
+
+      - name: Upload registry as workflow artifact (audit trail)
+        uses: actions/upload-artifact@v4
+        with:
+          name: model-registry-${{ github.run_id }}
+          path: model/registry.json
