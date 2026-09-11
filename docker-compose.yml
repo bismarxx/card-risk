@@ -6,7 +6,7 @@ services:
     image: cardio-risk-app:latest
     container_name: cardio-risk-app
     ports:
-      - "8501:8501"
+      - "127.0.0.1:8501:8501"
     environment:
       - PORT=8501
     restart: unless-stopped
