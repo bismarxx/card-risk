@@ -7,8 +7,8 @@ name: Model Maintenance (Scheduled Retraining)
 # (que valida cambios de código), aunque reutiliza el mismo entorno.
 on:
   schedule:
-    # Ejecución puntual: 2026-09-27 a las 02:46 UTC (21:46 hora local UTC-5).
-    - cron: "46 2 27 9 *"
+    # Todos los domingos a las 03:00 UTC.
+    - cron: "0 3 * * 0"
   workflow_dispatch:
     inputs:
       dry_run:
