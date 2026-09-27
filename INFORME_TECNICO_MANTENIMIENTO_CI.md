@@ -1,8 +1,314 @@
 # Informe Técnico — Mantenimiento e Integración Continua
-## Cardiovascular Risk Predictor
+## Cardiovascular Risk Predictor · Unidad II
 
 **Audiencia:** equipo de TI responsable de operar, mantener e integrar cambios sobre esta aplicación en producción.
-**Alcance:** este documento complementa a `INFORME.md` (que cubre dataset, entrenamiento inicial y despliegue) y se enfoca en los procesos **automatizados de mantenimiento e integración continua** exigidos en la Unidad II del proyecto.
+**Alcance:** este documento cubre los procesos automatizados de mantenimiento e integración continua (Unidad II). El entrenamiento inicial, el dataset y el despliegue manual se documentan en `INFORME.md`.
+
+---
+
+## 1. Funcionamiento de la aplicación
+
+La aplicación (`app.py`, Streamlit) expone un formulario clínico en inglés y devuelve una probabilidad de riesgo cardiovascular usando el modelo en producción.
+
+**Flujo de una predicción:**
+
+```
+Usuario rellena 13 campos clínicos
+        ↓
+build_feature_row()  → construye 17 features (13 originales + 4 derivadas)
+        ↓
+model.predict_proba()  → probabilidad ∈ [0, 1]
+        ↓
+Resultado: "High risk" (≥ 0.5) o "Low risk" (< 0.5) + barra de progreso
+```
+
+**Características derivadas** (calculadas en `build_feature_row`, idénticas al entrenamiento):
+
+| Feature | Fórmula |
+|---|---|
+| `bp_chol_ratio` | `trestbps / chol` |
+| `max_hr_expected` | `220 - age` |
+| `hr_reserve_deficit` | `max_hr_expected - thalach` |
+| `age_group` | Bins: `<40`, `40-49`, `50-59`, `60+` |
+
+El modelo serializado (`model/cardio_risk_model.joblib`) es un Pipeline de scikit-learn que incluye el preprocesamiento completo (`StandardScaler` + `OneHotEncoder`), garantizando consistencia exacta entre entrenamiento e inferencia.
+
+---
+
+## 2. Herramientas y plataformas necesarias
+
+| Categoría | Herramienta | Propósito |
+|---|---|---|
+| Lenguaje | Python 3.11 | Runtime de la app, entrenamiento y tests |
+| Interfaz web | Streamlit | UI interactiva |
+| ML | scikit-learn, joblib | Entrenamiento, pipeline de preprocesamiento, serialización |
+| Control de versiones | GitHub | Repositorio único fuente de verdad para código, modelo y workflows |
+| CI/CD | GitHub Actions | Ejecuta pruebas, construye la imagen y corre el reentrenamiento programado |
+| Contenedorización | Docker / Docker Compose | Empaqueta la app de forma reproducible y la levanta en producción |
+| Servidor de producción | Ubuntu Cloud Server (vía SSH) | Sirve el contenedor; el deploy se hace con `docker compose up --build` |
+| Testing | pytest, `streamlit.testing.v1.AppTest`, PyYAML | Pruebas funcionales, de mantenimiento y validación de configuración CI |
+| Registro de modelos | `model/registry.json` + `model/registry/` | Trazabilidad de versiones, métricas y decisiones de promoción |
+
+**Secrets a configurar en GitHub** (`Settings → Secrets and variables → Actions`):
+
+| Secret | Requerido | Uso |
+|---|---|---|
+| `GITHUB_TOKEN` | Automático | Permite al workflow de mantenimiento hacer commit/push del modelo promovido |
+| `SERVER_HOST` | Sí | IP o dominio del servidor de producción |
+| `SERVER_USER` | Sí | Usuario SSH (ej. `root`) |
+| `SSH_PRIVATE_KEY` | Sí | Llave privada RSA/ED25519 para autenticación SSH sin contraseña |
+| `SERVER_PORT` | Opcional | Puerto SSH (se asume 22 si no se define) |
+
+---
+
+## 3. Organización del código fuente
+
+```
+card-risk/
+├── app.py                       # Interfaz Streamlit (UI en inglés)
+├── train.py                     # Entrenamiento inicial (manual / build-time)
+├── retrain_pipeline.py          # Pipeline de MANTENIMIENTO: reentrena, evalúa y promueve
+├── test_app.py                  # Pruebas funcionales de la app y el modelo (11 casos)
+├── test_maintenance_ci.py       # Pruebas de mantenimiento y CI (3 casos exigidos)
+├── requirements.txt
+├── Dockerfile
+├── docker-compose.yml
+├── .dockerignore
+├── .gitignore
+├── .github/
+│   └── workflows/
+│       ├── ci.yml               # CI: test + docker-build + deploy (push/PR a main)
+│       └── maintenance.yml      # Mantenimiento: reentrenamiento (cron domingos 03:00 UTC)
+├── data/
+│   └── heart.csv                # Dataset UCI Heart Disease
+├── model/
+│   ├── cardio_risk_model.joblib # Alias de PRODUCCIÓN (el que consume app.py)
+│   ├── model_metadata.json      # Métricas e hiperparámetros del modelo en producción
+│   ├── registry.json            # Registro: campeón actual + historial de versiones
+│   └── registry/                # Artefactos versionados (model_v1.joblib, v2, ...)
+├── INFORME.md                   # Dataset, entrenamiento y despliegue (Unidad I)
+└── INFORME_TECNICO_MANTENIMIENTO_CI.md   # Este documento (Unidad II)
+```
+
+**Principio de diseño clave:** `app.py` siempre lee un único archivo fijo (`model/cardio_risk_model.joblib`). Ni la app ni el `Dockerfile` necesitan saber qué versión es la campeona — eso lo gestiona exclusivamente `retrain_pipeline.py` a través del registro. Esto desacopla el ciclo de vida del modelo del ciclo de vida del código de la aplicación.
+
+---
+
+## 4. Consideraciones de despliegue inicial
+
+1. **Build de la imagen:** el `Dockerfile` ejecuta `RUN python train.py` en tiempo de build. La primera imagen siempre contiene un modelo entrenado, incluso partiendo de un repositorio sin artefactos binarios.
+2. **Dataset:** `train.py` descarga `heart.csv` automáticamente desde un mirror público de GitHub. El CSV también está versionado en el repo como fallback si el servidor no tiene acceso a internet durante el build.
+3. **Variables de entorno:** Streamlit lee `PORT` desde el entorno (`--server.port=${PORT:-8501}`), haciendo el contenedor portable entre plataformas sin cambios de código.
+4. **Healthcheck:** el `Dockerfile` incluye un `HEALTHCHECK` contra `/_stcore/health` para que el orchestrador detecte si el proceso está sano antes de enrutar tráfico.
+5. **Arranque en producción (primera vez):**
+   ```bash
+   git clone <repo> /root/projects/card-risk
+   cd /root/projects/card-risk
+   docker compose up -d --build
+   ```
+   Cada redeploy posterior (por CI o por mantenimiento) ejecuta `git pull + docker compose up` automáticamente vía SSH desde GitHub Actions.
+
+---
+
+## 5. Flujo de trabajo automatizado de INTEGRACIÓN CONTINUA (CI)
+
+**Archivo:** `.github/workflows/ci.yml`
+
+**Objetivo:** evitar que cambios de código rompan la aplicación, las pruebas o el build de producción antes de fusionarlos a `main`.
+
+**Disparadores:**
+- `push` a `main`
+- `pull_request` contra `main`
+- `workflow_dispatch` (manual)
+
+**Jobs y pasos:**
+
+```
+push / PR a main
+      │
+      ▼
+┌──────────────────────────────────────────────┐
+│ Job: test                                    │
+│  1. Checkout                                 │
+│  2. Setup Python 3.11 + cache pip            │
+│  3. pip install -r requirements.txt          │
+│  4. python train.py  (genera modelo en CI)   │
+│  5. pytest test_app.py -v      (11 tests)    │
+│  6. pytest test_maintenance_ci.py -v (10)    │
+└──────────────────────────────────────────────┘
+      │ needs: test
+      ▼
+┌──────────────────────────────────────────────┐
+│ Job: docker-build                            │
+│  docker/build-push-action (push: false)      │
+│  → valida que el Dockerfile siga siendo OK   │
+└──────────────────────────────────────────────┘
+      │ needs: [test, docker-build] + push a main
+      ▼
+┌──────────────────────────────────────────────┐
+│ Job: deploy (appleboy/ssh-action)            │
+│  cd /root/projects/card-risk                 │
+│  git fetch origin main                       │
+│  git reset --hard origin/main                │
+│  docker compose down                         │
+│  docker compose up -d --build                │
+│  docker image prune -f                       │
+└──────────────────────────────────────────────┘
+```
+
+**Separación de responsabilidades:** CI valida *cambios de código* en cada push/PR (rápido, ~2-5 min); Mantenimiento valida *frescura del modelo* de forma programada (semanal, ~20-40 min por el `GridSearchCV`). Esto evita que un cambio de texto en la UI dispare un reentrenamiento, y evita que el reentrenamiento bloquee la fusión de código no relacionado.
+
+---
+
+## 6. Flujo de trabajo automatizado de MANTENIMIENTO
+
+**Archivo:** `.github/workflows/maintenance.yml`
+
+**Objetivo:** mantener el modelo actualizado sin intervención manual, con una salvaguarda que impide degradar el modelo en producción.
+
+**Disparadores:**
+- `schedule`: cron semanal — domingos a las 03:00 UTC (`0 3 * * 0`).
+- `workflow_dispatch`: ejecución manual bajo demanda (incluye opción `dry_run`).
+
+**Pasos del flujo:**
+
+```
+cron domingo 03:00 UTC / workflow_dispatch
+              │
+              ▼
+   python retrain_pipeline.py [--dry-run]
+              │
+    ┌─────────────────────────────────────┐
+    │ 1. download_dataset()               │  actualiza CSV si hay nueva versión
+    │ 2. load_and_engineer_features()     │  feature engineering idéntico al inicial
+    │ 3. train_and_select_best_model()    │  GridSearchCV 3 modelos, CV 5-fold
+    │ 4. evaluate_model()                 │  métricas en hold-out
+    │ 5. decide_promotion()               │  candidato.roc_auc > campeón + 0.001?
+    └─────────────────────────────────────┘
+              │
+        ┌─────┴──────┐
+      SI mejora    NO mejora
+        │            │
+        ▼            ▼
+  Promueve:      Descarta candidato:
+  copia .joblib  registra en history
+  registry.json  producción SIN cambios
+  metadata.json  (rollback seguro)
+        │
+        ▼ (solo si no es dry_run)
+  pytest test_app.py  ← validación de regresión
+        │
+        ▼ (si hubo cambios en model/)
+  git commit [skip ci] + git push
+        │
+        ▼ (si hubo promoción)
+  appleboy/ssh-action → servidor Ubuntu
+    git fetch + git reset --hard origin/main
+    docker compose up -d --build
+    docker image prune -f
+```
+
+**`[skip ci]`** en el commit evita que el workflow de CI se dispare sobre el push del modelo, previniendo un loop infinito.
+
+**Lógica de promoción (`decide_promotion`, función pura y testeada):**
+- Sin campeón previo → siempre promueve el primer modelo.
+- Con campeón → promueve solo si `candidato.roc_auc - campeón.roc_auc > 0.001`.
+- La tolerancia de `0.001` evita "promociones" por varianza numérica del split o del optimizador.
+
+**Exit codes del script:**
+- `0` → modelo promovido (o dry-run sin errores).
+- `1` → candidato no superó al campeón; producción sin cambios.
+
+---
+
+## 7. Pruebas de funcionamiento de mantenimiento e integración continua
+
+Implementadas en `test_maintenance_ci.py` (**10 pruebas** en los **3 casos** exigidos por la rúbrica):
+
+### Caso 1 — Promoción cuando el candidato mejora
+**Clase:** `TestMaintenanceCase1PromotionWhenBetter`
+
+| Prueba | Qué valida |
+|---|---|
+| `test_candidate_with_better_roc_auc_is_promoted` | Un candidato con ROC-AUC superior al campeón en más de la tolerancia SÍ se promueve |
+| `test_no_champion_yet_always_promotes_first_model` | El primer modelo (sin campeón previo) siempre se promueve |
+
+### Caso 2 — No promoción cuando el candidato no mejora (rollback seguro)
+**Clase:** `TestMaintenanceCase2NoPromotionWhenNotBetter`
+
+| Prueba | Qué valida |
+|---|---|
+| `test_candidate_with_worse_roc_auc_is_not_promoted` | ROC-AUC inferior NO promueve |
+| `test_candidate_with_equal_roc_auc_is_not_promoted` | ROC-AUC igual NO promueve (empates no cuentan) |
+| `test_candidate_within_tolerance_is_not_promoted` | Mejora menor a la tolerancia (`0.001/2`) NO promueve |
+
+### Caso 3 — Validez de los workflows de integración continua
+**Clase:** `TestCICase3WorkflowsAreValid`
+
+| Prueba | Qué valida |
+|---|---|
+| `test_ci_workflow_exists_and_is_valid_yaml` | `ci.yml` existe y es YAML válido |
+| `test_ci_workflow_triggers_on_push_and_pull_request` | `ci.yml` tiene disparadores `push` y `pull_request` |
+| `test_ci_workflow_runs_the_test_suite` | `ci.yml` ejecuta ambos conjuntos de pytest |
+| `test_maintenance_workflow_exists_and_is_scheduled` | `maintenance.yml` existe con `schedule` y `workflow_dispatch` |
+| `test_maintenance_workflow_runs_retrain_pipeline` | `maintenance.yml` ejecuta `retrain_pipeline.py` |
+
+**Resultado de la última ejecución: 21 passed (11 de `test_app.py` + 10 de `test_maintenance_ci.py`)**
+
+Estas pruebas corren automáticamente dentro del job `test` de `ci.yml`, cerrando el ciclo: **el pipeline de CI se prueba a sí mismo en cada ejecución.**
+
+```bash
+pip install -r requirements.txt
+python train.py                               # genera el modelo si no existe
+pytest test_app.py test_maintenance_ci.py -v  # 21 passed
+```
+
+---
+
+## 8. Runbook operativo para el equipo de TI
+
+**Modelo degradado / predicciones inconsistentes:**
+1. Revisar `model/registry.json` → campo `champion` (versión y métricas vigentes).
+2. Revisar `history` para identificar si hubo una promoción reciente sospechosa.
+3. Rollback manual: copiar `model/registry/model_v{N}.joblib` sobre `model/cardio_risk_model.joblib`, actualizar `champion` en `registry.json`, hacer commit/push — el CI redesplegará.
+
+**Reentrenamiento semanal falla:**
+1. Revisar logs del job `retrain` en `GitHub → Actions`.
+2. Causas típicas: fuente del dataset caída, timeout de `GridSearchCV`, fallo de `pytest test_app.py` post-promoción (indica regresión real, correctamente bloqueada antes del commit).
+3. Re-disparar con `workflow_dispatch` y `dry_run: true` para diagnosticar sin afectar producción.
+
+**Agregar un nuevo modelo candidato (ej. XGBoost):**
+1. Agregar la entrada en `get_candidate_models()` en `train.py`.
+2. No se toca `retrain_pipeline.py` ni los workflows — la lógica de promoción es agnóstica al tipo de modelo.
+
+**Redeploy manual de emergencia:**
+```bash
+ssh <SERVER_USER>@<SERVER_HOST>
+cd /root/projects/card-risk
+git fetch origin main && git reset --hard origin/main
+docker compose down && docker compose up -d --build
+docker image prune -f
+```
+
+---
+
+## 9. Trazabilidad y auditoría del modelo
+
+Todo cambio al modelo en producción queda registrado en tres lugares consistentes:
+
+1. **Git history** — cada promoción es un commit: `chore(maintenance): retrain and promote new champion model [skip ci]`.
+2. **`model/registry.json`** — historial estructurado con métricas, hiperparámetros, timestamp y estado de promoción de cada corrida.
+3. **GitHub Actions artifacts** — cada ejecución del workflow de mantenimiento sube `registry.json` como artefacto descargable (`model-registry-{run_id}`), incluso si no hubo promoción.
+
+**Estado actual del modelo en producción:**
+
+| Campo | Valor |
+|---|---|
+| Versión | v1 |
+| Algoritmo | Logistic Regression (`C=0.1`) |
+| ROC-AUC (test) | 0.8972 |
+| Recall (sensibilidad) | 0.9091 |
+| Promovido en | 2026-09-27T02:50 UTC |
 
 ---
 
