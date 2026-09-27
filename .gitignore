@@ -31,3 +31,6 @@ htmlcov/
 .idea/
 *.swp
 *.swo
+
+# Model registry vive en model/registry.json — el de raíz es un artefacto stale.
+/registry.json

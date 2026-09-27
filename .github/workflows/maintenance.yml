@@ -38,6 +38,10 @@ jobs:
 
       - name: Run maintenance pipeline
         id: retrain
+        # Exit 0 → promovido | Exit 1 → no promovido (candidato no superó al campeón).
+        # continue-on-error evita que exit 1 aborte el workflow; los pasos
+        # siguientes deciden si actuar usando steps.changes.outputs.changed.
+        continue-on-error: true
         run: |
           if [ "${{ inputs.dry_run }}" = "true" ]; then
             python retrain_pipeline.py --dry-run
@@ -80,7 +84,10 @@ jobs:
             curl -fsSL -X POST "$RENDER_DEPLOY_HOOK_URL"
             echo "Redeploy hook triggered."
           else
-            echo "RENDER_DEPLOY_HOOK_URL secret not set — skipping automatic redeploy."
+            echo "::error::El modelo fue promovido y commiteado, pero RENDER_DEPLOY_HOOK_URL"\
+                 " no está configurado — el servidor NO fue redesplegado."
+            echo "::error::Configura el secret en Settings → Secrets → Actions → RENDER_DEPLOY_HOOK_URL."
+            exit 1
           fi
 
       - name: Upload registry as workflow artifact (audit trail)

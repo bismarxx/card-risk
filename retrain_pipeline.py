@@ -203,9 +203,10 @@ def main() -> None:
     args = parser.parse_args()
     result = run_pipeline(dry_run=args.dry_run)
 
-    # Código de salida útil para pipelines de CI/CD que quieran reaccionar
-    # (p. ej. disparar un redeploy solo si hubo promoción).
-    raise SystemExit(0 if True else 1)
+    # Exit 0  → modelo promovido (o dry-run completado sin errores).
+    # Exit 1  → candidato no superó al campeón; producción sin cambios.
+    # Útil para pipelines externos que quieran reaccionar al resultado.
+    raise SystemExit(0 if result["promoted"] else 1)
 
 
 if __name__ == "__main__":
