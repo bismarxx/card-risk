@@ -1,0 +1,52 @@
+name: Emergency Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_ref:
+        description: 'Tag de versión o Commit SHA al que deseas volver (ej. v1.0, HEAD~1, a1b2c3d)'
+        required: true
+        default: 'HEAD~1'
+      reason:
+        description: 'Razón del rollback (para auditoría)'
+        required: true
+        default: 'Mala ingesta de datos detectada en producción'
+
+jobs:
+  rollback-deploy:
+    name: Rollback en Servidor Ubuntu
+    runs-on: ubuntu-latest
+    steps:
+      - name: Log de Auditoría
+        run: |
+          echo "=========================================="
+          echo "🚨 EJECUTANDO ROLLBACK DE EMERGENCIA"
+          echo "Ejecutado por: ${{ github.actor }}"
+          echo "Destino: ${{ github.event.inputs.target_ref }}"
+          echo "Motivo: ${{ github.event.inputs.reason }}"
+          echo "=========================================="
+
+      - name: Ejecutar Rollback vía SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          script: |
+            cd /root/projects/card-risk
+            
+            echo "1. Obteniendo últimos cambios y tags de Git..."
+            git fetch --all --tags
+            
+            echo "2. Apuntando al commit o tag seleccionado: ${{ github.event.inputs.target_ref }}..."
+            git checkout ${{ github.event.inputs.target_ref }}
+            
+            echo "3. Reconstruyendo contenedor Docker con el modelo anterior..."
+            docker compose down
+            docker compose up -d --build
+            
+            echo "4. Limpieza de imágenes huérfanas..."
+            docker image prune -f
+            
+            echo "✅ Rollback completado con éxito a ${{ github.event.inputs.target_ref }}"
