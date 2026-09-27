@@ -161,7 +161,7 @@ class TestStreamlitApp:
         at.run(timeout=30)
 
         assert not at.exception
-        assert at.title[0].value == "Cardiovascular Risk Predictor prueba 13/09/2026"
+        assert at.title[0].value == "Cardiovascular Risk Predictor"
 
     def test_app_predict_button_returns_result(self):
         from streamlit.testing.v1 import AppTest
