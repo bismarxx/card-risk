@@ -1,0 +1,3188 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cardiovascular Risk Predictor · MLOps & Arquitectura Técnica</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #070b14;
+      --bg-surface: rgba(17, 24, 39, 0.75);
+      --bg-surface-elevated: rgba(30, 41, 59, 0.85);
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-accent: rgba(99, 102, 241, 0.3);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      
+      /* Theme accents */
+      --c-app: #0ea5e9;
+      --c-app-glow: rgba(14, 165, 233, 0.25);
+      --c-maint: #a855f7;
+      --c-maint-glow: rgba(168, 85, 247, 0.25);
+      --c-ci: #10b981;
+      --c-ci-glow: rgba(16, 185, 129, 0.25);
+      --c-test: #f59e0b;
+      --c-test-glow: rgba(245, 158, 11, 0.25);
+      --c-indigo: #6366f1;
+      --c-danger: #ef4444;
+      
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+      --font-heading: 'Outfit', sans-serif;
+      --font-body: 'Plus Jakarta Sans', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      --transition-smooth: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(99, 102, 241, 0.12) 0%, transparent 45%),
+        radial-gradient(circle at 85% 85%, rgba(14, 165, 233, 0.10) 0%, transparent 45%),
+        radial-gradient(circle at 50% 50%, rgba(168, 85, 247, 0.06) 0%, transparent 60%);
+      color: var(--text-main);
+      font-family: var(--font-body);
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      user-select: none;
+    }
+
+    /* TOP HEADER & PROGRESS BAR */
+    header {
+      height: 64px;
+      padding: 0 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-subtle);
+      background: rgba(7, 11, 20, 0.85);
+      backdrop-filter: blur(16px);
+      z-index: 100;
+      position: relative;
+    }
+
+    .progress-bar-container {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 3px;
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--c-indigo), var(--c-app), var(--c-maint), var(--c-ci), var(--c-test));
+      transition: width 0.35s ease;
+      box-shadow: 0 0 10px rgba(99, 102, 241, 0.5);
+    }
+
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 9px;
+      background: linear-gradient(135deg, #ef4444, #ec4899);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      box-shadow: 0 0 16px rgba(239, 68, 68, 0.4);
+    }
+
+    .brand-title {
+      font-family: var(--font-heading);
+      font-weight: 700;
+      font-size: 17px;
+      letter-spacing: -0.3px;
+      color: #fff;
+    }
+
+    .brand-version {
+      font-size: 11px;
+      padding: 2px 7px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+
+    .header-center {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .topic-pill {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 5px 14px;
+      border-radius: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border: 1px solid transparent;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: var(--transition-smooth);
+    }
+
+    .topic-pill.theme-app { background: rgba(14, 165, 233, 0.15); color: #38bdf8; border-color: rgba(14, 165, 233, 0.3); }
+    .topic-pill.theme-maint { background: rgba(168, 85, 247, 0.15); color: #c084fc; border-color: rgba(168, 85, 247, 0.3); }
+    .topic-pill.theme-ci { background: rgba(16, 185, 129, 0.15); color: #34d399; border-color: rgba(16, 185, 129, 0.3); }
+    .topic-pill.theme-test { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border-color: rgba(245, 158, 11, 0.3); }
+    .topic-pill.theme-intro { background: rgba(99, 102, 241, 0.15); color: #818cf8; border-color: rgba(99, 102, 241, 0.3); }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .slide-counter {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--text-muted);
+      padding: 5px 12px;
+      background: rgba(255, 255, 255, 0.04);
+      border-radius: 8px;
+      border: 1px solid var(--border-subtle);
+    }
+
+    .btn-icon {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      width: 36px;
+      height: 36px;
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 14px;
+      transition: var(--transition-smooth);
+    }
+
+    .btn-icon:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.2);
+      transform: translateY(-1px);
+    }
+
+    /* SLIDE STAGE & SLIDES */
+    main.stage {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      padding: 24px 36px 16px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .slide {
+      position: absolute;
+      top: 24px;
+      left: 36px;
+      right: 36px;
+      bottom: 16px;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(14px) scale(0.99);
+      transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.4s;
+      display: flex;
+      flex-direction: column;
+      pointer-events: none;
+    }
+
+    .slide.active {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0) scale(1);
+      pointer-events: auto;
+    }
+
+    /* SLIDE HEADER & TYPOGRAPHY */
+    .slide-header {
+      margin-bottom: 16px;
+    }
+
+    .slide-meta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 6px;
+    }
+
+    .slide-tag {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      padding: 3px 10px;
+      border-radius: 6px;
+      display: inline-block;
+    }
+
+    .slide-title {
+      font-family: var(--font-heading);
+      font-size: 26px;
+      font-weight: 700;
+      line-height: 1.25;
+      letter-spacing: -0.5px;
+      color: #fff;
+    }
+
+    .summary-badge {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 15px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.03);
+      border-left: 3px solid;
+      margin-top: 8px;
+      font-size: 13px;
+      color: #cbd5e1;
+      line-height: 1.4;
+    }
+
+    .summary-badge strong {
+      color: #fff;
+      font-weight: 600;
+    }
+
+    /* SLIDE CONTENT GRIDS */
+    .slide-body {
+      flex: 1;
+      display: grid;
+      gap: 18px;
+      overflow-y: auto;
+      padding-right: 6px;
+      align-content: start;
+    }
+
+    .grid-2 {
+      grid-template-columns: 1.05fr 0.95fr;
+    }
+
+    .grid-2-equal {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    /* CARDS & GLASS CONTAINERS */
+    .card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 18px;
+      backdrop-filter: blur(12px);
+      transition: var(--transition-smooth);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .card:hover {
+      border-color: rgba(255, 255, 255, 0.16);
+      transform: translateY(-2px);
+      box-shadow: 0 12px 24px -10px rgba(0, 0, 0, 0.5);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      padding-bottom: 8px;
+    }
+
+    .card-title {
+      font-family: var(--font-heading);
+      font-size: 15px;
+      font-weight: 600;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-title svg {
+      width: 17px;
+      height: 17px;
+      flex-shrink: 0;
+    }
+
+    .card p {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* LIST ITEMS WITH BULLETS */
+    .feature-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+    }
+
+    .feature-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 13px;
+      color: #cbd5e1;
+      line-height: 1.45;
+    }
+
+    .feature-list li .bullet {
+      width: 20px;
+      height: 20px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    /* STATS & METRICS BADGES */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+
+    .metric-box {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      transition: var(--transition-smooth);
+    }
+
+    .metric-box:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+
+    .metric-val {
+      font-family: var(--font-heading);
+      font-size: 24px;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: -0.5px;
+    }
+
+    .metric-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+    }
+
+    .metric-hint {
+      font-size: 10.5px;
+      color: var(--text-dim);
+    }
+
+    /* CODE & TERMINAL SNIPPETS */
+    .terminal-card {
+      background: #060913;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .terminal-bar {
+      background: rgba(255, 255, 255, 0.04);
+      padding: 7px 12px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .terminal-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+    }
+
+    .terminal-title {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-left: 6px;
+    }
+
+    .terminal-body {
+      padding: 12px 14px;
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      line-height: 1.55;
+      color: #e2e8f0;
+      overflow-x: auto;
+    }
+
+    .cmd-line {
+      display: flex;
+      gap: 8px;
+    }
+
+    .cmd-prompt { color: var(--c-indigo); font-weight: 600; }
+    .cmd-text { color: #f8fafc; }
+    .cmd-comment { color: var(--text-dim); }
+    .cmd-success { color: #34d399; }
+    .cmd-warn { color: #fbbf24; }
+    .cmd-danger { color: #f87171; }
+
+    /* WORKFLOW STEP DIAGRAM */
+    .workflow-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+      position: relative;
+    }
+
+    .step-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 11px;
+      padding: 9px 12px;
+      border-radius: 9px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-subtle);
+      transition: var(--transition-smooth);
+    }
+
+    .step-item:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.15);
+      transform: translateX(3px);
+    }
+
+    .step-num {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .step-info {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .step-heading {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .step-desc {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      line-height: 1.35;
+    }
+
+    /* ═════════════════════════════════════════════════════════════
+       1. CLINICAL INFERENCE SIMULATOR (SLIDE 2)
+       ═════════════════════════════════════════════════════════════ */
+    .inf-box {
+      background: rgba(11, 19, 38, 0.85);
+      border: 1px solid rgba(14, 165, 233, 0.25);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 11px;
+      box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.6);
+    }
+
+    .inf-presets {
+      display: flex;
+      gap: 6px;
+    }
+
+    .inf-preset-btn {
+      flex: 1;
+      padding: 6px 8px;
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: 6px;
+      border: 1px solid var(--border-subtle);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: var(--transition-smooth);
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .inf-preset-btn:hover {
+      background: rgba(255, 255, 255, 0.09);
+      color: #fff;
+    }
+
+    .inf-preset-btn.active {
+      border-color: var(--c-app);
+      background: rgba(14, 165, 233, 0.2);
+      color: #38bdf8;
+      box-shadow: 0 0 10px rgba(14, 165, 233, 0.3);
+    }
+
+    .inf-grid-13 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px 12px;
+    }
+
+    .inf-section-header {
+      grid-column: 1 / -1;
+      font-size: 10px;
+      font-weight: 800;
+      color: #38bdf8;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 0 2px;
+      margin-top: 2px;
+      border-bottom: 1px solid rgba(14, 165, 233, 0.2);
+    }
+
+    .inf-control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .inf-control-group.full-width {
+      grid-column: 1 / -1;
+    }
+
+    .inf-label-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 10.5px;
+      color: var(--text-muted);
+    }
+
+    .inf-val-badge {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-weight: 700;
+      color: #fff;
+      background: rgba(255, 255, 255, 0.08);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+
+    .inf-slider {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 4px;
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.12);
+      outline: none;
+      cursor: pointer;
+      transition: var(--transition-smooth);
+    }
+
+    .inf-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 13px;
+      height: 13px;
+      border-radius: 50%;
+      background: var(--c-app);
+      box-shadow: 0 0 8px rgba(14, 165, 233, 0.8);
+      cursor: pointer;
+      transition: transform 0.15s ease;
+    }
+
+    .inf-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.25);
+    }
+
+    .inf-toggle-row {
+      display: flex;
+      gap: 4px;
+      margin-top: 1px;
+    }
+
+    .inf-toggle-btn {
+      flex: 1;
+      padding: 3px 6px;
+      font-size: 10px;
+      font-weight: 600;
+      border-radius: 5px;
+      border: 1px solid var(--border-subtle);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: var(--transition-smooth);
+      text-align: center;
+    }
+
+    .inf-toggle-btn.active {
+      background: var(--c-app);
+      color: #fff;
+      border-color: var(--c-app);
+      box-shadow: 0 0 8px rgba(14, 165, 233, 0.4);
+    }
+
+    .inf-select {
+      width: 100%;
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 5px;
+      color: #f8fafc;
+      font-size: 10.5px;
+      padding: 3px 6px;
+      outline: none;
+      cursor: pointer;
+      font-family: var(--font-body);
+      transition: var(--transition-smooth);
+    }
+
+    .inf-select:focus {
+      border-color: var(--c-app);
+      box-shadow: 0 0 8px rgba(14, 165, 233, 0.4);
+    }
+
+    .inf-select option {
+      background: #0f172a;
+      color: #f8fafc;
+    }
+
+    .inf-derived-box {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      padding: 7px 9px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .inf-derived-title {
+      font-size: 9.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-dim);
+      font-weight: 700;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .inf-derived-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 5px;
+    }
+
+    .inf-derived-item {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      background: rgba(255, 255, 255, 0.03);
+      padding: 3px 5px;
+      border-radius: 5px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .inf-derived-lbl {
+      font-size: 8.5px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .inf-derived-val {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      color: #38bdf8;
+    }
+
+    .inf-pipeline-strip {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 4px;
+      margin-top: 2px;
+    }
+
+    .inf-pipeline-node {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 6px;
+      padding: 4px 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      font-size: 9.5px;
+    }
+
+    .inf-pipeline-num {
+      font-family: var(--font-mono);
+      font-size: 8.5px;
+      font-weight: 700;
+      color: var(--c-app);
+    }
+
+    .inf-pipeline-txt {
+      font-size: 9.5px;
+      color: #e2e8f0;
+      line-height: 1.2;
+    }
+
+    .inf-result-panel {
+      border-radius: 9px;
+      padding: 11px 13px;
+      background: rgba(0, 0, 0, 0.35);
+      border-left: 4px solid var(--c-app);
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      transition: border-color 0.3s ease;
+    }
+
+    .inf-result-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+
+    .inf-score-title {
+      font-size: 10.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-dim);
+      font-weight: 700;
+    }
+
+    .inf-score-pct {
+      font-family: var(--font-heading);
+      font-size: 24px;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: -0.5px;
+    }
+
+    .inf-meter-bg {
+      width: 100%;
+      height: 7px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .inf-meter-fill {
+      height: 100%;
+      width: 25%;
+      border-radius: 4px;
+      transition: width 0.25s ease, background 0.25s ease, box-shadow 0.25s ease;
+    }
+
+    .inf-category-text {
+      font-size: 12px;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .inf-recommendation {
+      font-size: 11px;
+      color: var(--text-muted);
+      line-height: 1.35;
+    }
+
+    /* ═════════════════════════════════════════════════════════════
+       2. PROMOTION SIMULATOR (SLIDE 5)
+       ═════════════════════════════════════════════════════════════ */
+    .maint-sim-box {
+      background: rgba(15, 23, 42, 0.75);
+      border: 1px solid rgba(168, 85, 247, 0.3);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 11px;
+      box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.6);
+    }
+
+    .maint-presets {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+
+    .maint-preset-btn {
+      padding: 6px 6px;
+      font-size: 10px;
+      font-weight: 600;
+      border-radius: 6px;
+      border: 1px solid var(--border-subtle);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: var(--transition-smooth);
+      text-align: center;
+      line-height: 1.25;
+    }
+
+    .maint-preset-btn:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+    }
+
+    .maint-preset-btn.active {
+      border-color: var(--c-maint);
+      background: rgba(168, 85, 247, 0.25);
+      color: #c084fc;
+      box-shadow: 0 0 10px rgba(168, 85, 247, 0.35);
+    }
+
+    .maint-slider-row {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      background: rgba(0, 0, 0, 0.25);
+      padding: 8px 11px;
+      border-radius: 8px;
+      border: 1px solid var(--border-subtle);
+    }
+
+    .maint-slider-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+    }
+
+    .maint-slider {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.12);
+      outline: none;
+      cursor: pointer;
+    }
+
+    .maint-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      background: var(--c-maint);
+      box-shadow: 0 0 10px rgba(168, 85, 247, 0.8);
+      cursor: pointer;
+      transition: transform 0.15s ease;
+    }
+
+    .maint-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.25);
+    }
+
+    .compare-bars-box {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      background: rgba(0, 0, 0, 0.22);
+      padding: 9px 11px;
+      border-radius: 8px;
+    }
+
+    .compare-bar-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+    }
+
+    .compare-bar-label {
+      width: 95px;
+      color: var(--text-muted);
+      font-weight: 600;
+      flex-shrink: 0;
+      font-size: 10.5px;
+    }
+
+    .compare-bar-track {
+      flex: 1;
+      height: 9px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 5px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .compare-bar-fill {
+      height: 100%;
+      border-radius: 5px;
+      transition: width 0.25s ease, background 0.25s ease;
+    }
+
+    .compare-bar-val {
+      width: 48px;
+      text-align: right;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      color: #fff;
+      font-size: 11px;
+    }
+
+    .maint-decision-panel {
+      border-radius: 9px;
+      padding: 10px 12px;
+      background: rgba(0, 0, 0, 0.4);
+      border-left: 4px solid var(--c-maint);
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      transition: border-color 0.3s ease;
+    }
+
+    .maint-decision-title {
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.2px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .maint-decision-desc {
+      font-size: 11px;
+      color: #cbd5e1;
+      line-height: 1.35;
+    }
+
+    .maint-actions-row {
+      display: flex;
+      gap: 5px;
+      flex-wrap: wrap;
+      margin-top: 1px;
+    }
+
+    /* BOTTOM CONTROLS & DOCK */
+    footer {
+      height: 68px;
+      padding: 0 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid var(--border-subtle);
+      background: rgba(7, 11, 20, 0.9);
+      backdrop-filter: blur(16px);
+      z-index: 100;
+    }
+
+    .footer-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .topic-tab-btn {
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: var(--transition-smooth);
+    }
+
+    .topic-tab-btn:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .topic-tab-btn.active {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+
+    .dots-container {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.2);
+      cursor: pointer;
+      transition: var(--transition-smooth);
+    }
+
+    .dot:hover {
+      background: rgba(255, 255, 255, 0.6);
+      transform: scale(1.3);
+    }
+
+    .dot.active {
+      width: 24px;
+      border-radius: 8px;
+      background: var(--c-indigo);
+      box-shadow: 0 0 10px rgba(99, 102, 241, 0.5);
+    }
+
+    .dot.group-app.active { background: var(--c-app); box-shadow: 0 0 10px rgba(14, 165, 233, 0.6); }
+    .dot.group-maint.active { background: var(--c-maint); box-shadow: 0 0 10px rgba(168, 85, 247, 0.6); }
+    .dot.group-ci.active { background: var(--c-ci); box-shadow: 0 0 10px rgba(16, 185, 129, 0.6); }
+    .dot.group-test.active { background: var(--c-test); box-shadow: 0 0 10px rgba(245, 158, 11, 0.6); }
+
+    .nav-buttons {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .nav-btn {
+      padding: 8px 18px;
+      border-radius: 9px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: var(--transition-smooth);
+      border: 1px solid var(--border-subtle);
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-main);
+    }
+
+    .nav-btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.25);
+      transform: translateY(-1px);
+    }
+
+    .nav-btn.primary {
+      background: linear-gradient(135deg, var(--c-indigo), #4f46e5);
+      border-color: transparent;
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35);
+    }
+
+    .nav-btn.primary:hover {
+      box-shadow: 0 6px 20px rgba(79, 70, 229, 0.55);
+      transform: translateY(-2px);
+    }
+
+    /* MODAL DRAWER (TABLE OF CONTENTS) */
+    .toc-drawer {
+      position: fixed;
+      top: 64px;
+      right: 0;
+      bottom: 68px;
+      width: 380px;
+      background: rgba(11, 17, 32, 0.95);
+      backdrop-filter: blur(20px);
+      border-left: 1px solid var(--border-subtle);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      transform: translateX(100%);
+      transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      z-index: 200;
+      overflow-y: auto;
+    }
+
+    .toc-drawer.open {
+      transform: translateX(0);
+      box-shadow: -10px 0 30px rgba(0, 0, 0, 0.6);
+    }
+
+    .toc-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 12px;
+    }
+
+    .toc-title {
+      font-family: var(--font-heading);
+      font-size: 16px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .toc-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .toc-item {
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: var(--transition-smooth);
+    }
+
+    .toc-item:hover {
+      background: rgba(255, 255, 255, 0.06);
+      color: #fff;
+    }
+
+    .toc-item.active {
+      background: rgba(99, 102, 241, 0.15);
+      border-left: 3px solid var(--c-indigo);
+      color: #fff;
+      font-weight: 600;
+    }
+
+    /* SLIDE 0 SPECIAL COVER STYLES */
+    .cover-container {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      gap: 22px;
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    .cover-badge-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .cover-title {
+      font-family: var(--font-heading);
+      font-size: 44px;
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -1.2px;
+      background: linear-gradient(135deg, #ffffff 30%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .cover-subtitle {
+      font-size: 17px;
+      color: #94a3b8;
+      max-width: 720px;
+      line-height: 1.55;
+    }
+
+    .cover-topics-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 13px;
+      width: 100%;
+      margin-top: 6px;
+    }
+
+    .cover-topic-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 15px;
+      text-align: left;
+      cursor: pointer;
+      transition: var(--transition-smooth);
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .cover-topic-card:hover {
+      border-color: rgba(255, 255, 255, 0.25);
+      transform: translateY(-4px);
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .cover-topic-num {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .cover-topic-name {
+      font-family: var(--font-heading);
+      font-size: 13.5px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .cover-topic-desc {
+      font-size: 11px;
+      color: var(--text-dim);
+      line-height: 1.35;
+    }
+
+    /* BADGES & PILLS */
+    .badge-pill {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.06);
+      color: #cbd5e1;
+    }
+
+    .badge-pill.success { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+    .badge-pill.warn { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+    .badge-pill.info { background: rgba(14, 165, 233, 0.15); color: #38bdf8; }
+    .badge-pill.purple { background: rgba(168, 85, 247, 0.15); color: #c084fc; }
+
+    /* SCROLLBAR CUSTOMIZATION */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.1);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- TOP HEADER -->
+  <header>
+    <div class="progress-bar-container">
+      <div class="progress-bar-fill" id="progressBar"></div>
+    </div>
+
+    <div class="header-brand">
+      <div class="brand-icon">❤️</div>
+      <div>
+        <div class="brand-title">Cardiovascular Risk Predictor</div>
+      </div>
+      <span class="brand-version">MLOps · v3.0</span>
+    </div>
+
+    <div class="header-center">
+      <div class="topic-pill theme-intro" id="headerTopicPill">
+        <span>00 · Portada & Visión General</span>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <div class="slide-counter" id="slideCounter">01 / 14</div>
+      <button class="btn-icon" id="btnToc" title="Índice de Diapositivas (T)">☰</button>
+      <button class="btn-icon" id="btnFullscreen" title="Pantalla Completa (F)">⛶</button>
+    </div>
+  </header>
+
+  <!-- TABLE OF CONTENTS DRAWER -->
+  <div class="toc-drawer" id="tocDrawer">
+    <div class="toc-header">
+      <div class="toc-title">Índice de la Presentación</div>
+      <button class="btn-icon" id="btnCloseToc">✕</button>
+    </div>
+    <ul class="toc-list" id="tocList">
+      <!-- Generated by JS -->
+    </ul>
+  </div>
+
+  <!-- SLIDES STAGE -->
+  <main class="stage" id="stage">
+
+    <!-- ─────────────────────────────────────────────────────────────
+         SLIDE 0: PORTADA & RESUMEN EJECUTIVO
+         ───────────────────────────────────────────────────────────── -->
+    <div class="slide active" data-theme="intro" data-title="Portada · Arquitectura MLOps">
+      <div class="cover-container">
+        <div class="cover-badge-row">
+          <span class="badge-pill info">Python 3.11</span>
+          <span class="badge-pill purple">scikit-learn & joblib</span>
+          <span class="badge-pill info">Streamlit Cloud / Docker</span>
+          <span class="badge-pill success">GitHub Actions CI/CD</span>
+          <span class="badge-pill warn">21 Tests Pasando</span>
+        </div>
+
+        <h1 class="cover-title">Cardiovascular Risk Predictor</h1>
+        <p class="cover-subtitle">
+          Sistema integral de inferencia clínica con <strong>simulador interactivo en tiempo real</strong>, 
+          <strong>pipelines autónomos de mantenimiento</strong> y <strong>certificación rigurosa mediante pruebas</strong>.
+        </p>
+
+        <div class="cover-topics-grid">
+          <div class="cover-topic-card" onclick="goToSlide(1)">
+            <span class="cover-topic-num" style="color: var(--c-app);">Tema 1 · 3 Diapositivas</span>
+            <div class="cover-topic-name">Funcionamiento de la App</div>
+            <div class="cover-topic-desc">Propósito clínico, <strong>Simulador en Vivo</strong> y métricas de desempeño.</div>
+          </div>
+          <div class="cover-topic-card" onclick="goToSlide(4)">
+            <span class="cover-topic-num" style="color: var(--c-maint);">Tema 2 · 3 Diapositivas</span>
+            <div class="cover-topic-name">Pipelines de Mantenimiento</div>
+            <div class="cover-topic-desc">Reentrenamiento semanal, <strong>Simulador Champion vs Challenger</strong> y rollback.</div>
+          </div>
+          <div class="cover-topic-card" onclick="goToSlide(7)">
+            <span class="cover-topic-num" style="color: var(--c-ci);">Tema 3 · 3 Diapositivas</span>
+            <div class="cover-topic-name">Pipelines de CI/CD</div>
+            <div class="cover-topic-desc">Triggers automáticos, suites de pytest, build de Docker y SSH deploy.</div>
+          </div>
+          <div class="cover-topic-card" onclick="goToSlide(10)">
+            <span class="cover-topic-num" style="color: var(--c-test);">Tema 4 · 3 Diapositivas</span>
+            <div class="cover-topic-name">Pruebas (3 Casos Clave)</div>
+            <div class="cover-topic-desc">Promoción exitosa, descarte sin regresión y validación de sintaxis CI.</div>
+          </div>
+        </div>
+
+        <div style="font-size: 12px; color: var(--text-dim); display: flex; gap: 16px; align-items: center; justify-content: center; margin-top: 10px;">
+          <span>Navegación: <strong>← →</strong> o <strong>Espacio</strong></span>
+          <span>•</span>
+          <span>Índice rápido: <strong>T</strong></span>
+          <span>•</span>
+          <span>Pantalla completa: <strong>F</strong></span>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ─────────────────────────────────────────────────────────────
+         TEMA 1: FUNCIONAMIENTO DE LA APLICACIÓN (3 SLIDES)
+         ───────────────────────────────────────────────────────────── -->
+
+    <!-- SLIDE 1 (Tema 1 · Slide 1/3): PROPÓSITO CLÍNICO Y ARQUITECTURA -->
+    <div class="slide" data-theme="app" data-title="1.1 Propósito Clínico y Arquitectura">
+      <div class="slide-header">
+        <div class="slide-meta">
+          <span class="slide-tag" style="background: rgba(14, 165, 233, 0.2); color: var(--c-app);">TEMA 1 · SLIDE 1 DE 3</span>
+          <span style="font-size: 13px; color: var(--text-dim);">FUNCIONAMIENTO DE LA APLICACIÓN</span>
+        </div>
+        <h2 class="slide-title">Propósito Clínico y Arquitectura del Sistema</h2>
+        <div class="summary-badge" style="border-color: var(--c-app);">
+          <span>💡 <strong>Idea Central:</strong> Estimación preventiva no invasiva del riesgo de enfermedad cardiovascular mediante 13 biomarcadores clínicos estandarizados (Dataset UCI Cleveland), orquestado sobre una arquitectura ligera y desacoplada.</span>
+        </div>
+      </div>
+
+      <div class="slide-body grid-2">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title" style="color: #38bdf8;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+              Fundamentos Clínicos & Tecnológicos
+            </span>
+            <span class="badge-pill info">UCI Heart Disease</span>
+          </div>
+          <ul class="feature-list">
+            <li>
+              <div class="bullet" style="background: rgba(14, 165, 233, 0.2); color: var(--c-app);">1</div>
+              <div>
+                <strong>Problema Abordado:</strong> La cardiopatía isquémica es la principal causa de mortalidad global. La detección temprana mediante triaje asistido reduce drásticamente eventos coronarios agudos.
+              </div>
+            </li>
+            <li>
+              <div class="bullet" style="background: rgba(14, 165, 233, 0.2); color: var(--c-app);">2</div>
+              <div>
+                <strong>13 Variables Médicas Clave:</strong> Edad, sexo, tipo de dolor torácico (cp), presión arterial en reposo (trestbps), colesterol sérico (chol), glucemia en ayunas (fbs), ECG en reposo, frecuencia cardíaca máxima (thalach), angina inducida por ejercicio, depresión ST (oldpeak), pendiente ST, vasos fluoroscopia (ca) y thal.
+              </div>
+            </li>
+            <li>
+              <div class="bullet" style="background: rgba(14, 165, 233, 0.2); color: var(--c-app);">3</div>
+              <div>
+                <strong>Stack Desacoplado:</strong> Frontend reactivo con <em>Streamlit</em>, capa de inferencia determinista con <em>scikit-learn</em> serializado en joblib, y portabilidad 100% aislada en contenedor <em>Docker</em>.
+              </div>
+            </li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Arquitectura de Capas de la Solución</span>
+            <span class="badge-pill success">Zero-Latency Ingestion</span>
+          </div>
+          <div class="workflow-steps">
+            <div class="step-item">
+              <div class="step-num" style="background: rgba(14, 165, 233, 0.25); color: var(--c-app);">UI</div>
+              <div class="step-info">
+                <div class="step-heading">Capa de Presentación (Streamlit Web UI)</div>
+                <div class="step-desc">Formularios clínicos organizados en cuadrículas reactivas con validación inmediata en cliente.</div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num" style="background: rgba(99, 102, 241, 0.25); color: var(--c-indigo);">VAL</div>
+              <div class="step-info">
+                <div class="step-heading">Capa de Validación Fisiológica (app.py)</div>
+                <div class="step-desc">Filtro de integridad que verifica rangos biológicamente válidos (e.g. presión 80-250 mmHg).</div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num" style="background: rgba(168, 85, 247, 0.25); color: var(--c-maint);">ML</div>
+              <div class="step-info">
+                <div class="step-heading">Pipeline de Inferencia (scikit-learn)</div>
+                <div class="step-desc">Imputación mediana + StandardScaler + Regresión Logística regularizada L2.</div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num" style="background: rgba(16, 185, 129, 0.25); color: var(--c-ci);">RES</div>
+              <div class="step-info">
+                <div class="step-heading">Reporte Clínico y Semáforo</div>
+                <div class="step-desc">Probabilidad porcentual continua (0-100%) clasificada en Bajo, Moderado o Alto Riesgo.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 2 (Tema 1 · Slide 2/3): FLUJO DE USUARIO Y SIMULADOR DE INFERENCIA -->
+    <div class="slide" data-theme="app" data-title="1.2 Flujo y Simulador de Inferencia">
+      <div class="slide-header">
+        <div class="slide-meta">
+          <span class="slide-tag" style="background: rgba(14, 165, 233, 0.2); color: var(--c-app);">TEMA 1 · SLIDE 2 DE 3</span>
+          <span style="font-size: 13px; color: var(--text-dim);">FUNCIONAMIENTO DE LA APLICACIÓN</span>
+        </div>
+        <h2 class="slide-title">Flujo Interactivo y Simulador de Inferencia en Tiempo Real</h2>
+        <div class="summary-badge" style="border-color: var(--c-app);">
+          <span>💡 <strong>Idea Central:</strong> Captura y validación fisiológica de los <strong>13 biomarcadores clínicos</strong> del paciente en Streamlit, con derivación de variables en tiempo real y triaje probabilístico determinista (&lt;10ms).</span>
+        </div>
+      </div>
+
+      <div class="slide-body grid-2">
+        <!-- Columna Izquierda: Formulario Completo de 13 Variables Clínicas -->
+        <div class="card" style="background: rgba(9, 16, 32, 0.88);">
+          <div class="card-header" style="padding-bottom: 6px; margin-bottom: 4px;">
+            <span class="card-title" style="color: #38bdf8;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+              Datos Clínicos del Paciente (13 Variables Streamlit)
+            </span>
+            <span class="badge-pill info">UCI Cleveland (303 pts)</span>
+          </div>
+
+          <div class="inf-grid-13">
+            <!-- SECCIÓN 1: DEMOGRÁFICOS Y SIGNOS VITALES -->
+            <div class="inf-section-header">
+              <span>👤 1. Demografía y Signos Vitales</span>
+            </div>
+
+            <!-- 1. Age (years) -->
+            <div class="inf-control-group">
+              <div class="inf-label-row">
+                <span>Age (years):</span>
+                <span class="inf-val-badge" id="lblAge">50 años</span>
+              </div>
+              <input type="range" class="inf-slider" id="sliderAge" min="18" max="100" value="50" oninput="runLiveInference()">
+            </div>
+
+            <!-- 2. Sex -->
+            <div class="inf-control-group">
+              <div class="inf-label-row">
+                <span>Sex:</span>
+                <span class="inf-val-badge" id="lblSex">Hombre (1)</span>
+              </div>
+              <div class="inf-toggle-row">
+                <button type="button" class="inf-toggle-btn active" id="btnSex1" onclick="setSex(1)">Hombre (1)</button>
+                <button type="button" class="inf-toggle-btn" id="btnSex0" onclick="setSex(0)">Mujer (0)</button>
+              </div>
+            </div>
+
+            <!-- 3. Resting blood pressure -->
+            <div class="inf-control-group">
+              <div class="inf-label-row">
+                <span>Resting BP (mm Hg):</span>
+                <span class="inf-val-badge" id="lblBps">130 mmHg</span>
+              </div>
+              <input type="range" class="inf-slider" id="sliderBps" min="80" max="220" value="130" oninput="runLiveInference()">
+            </div>
+
+            <!-- 4. Serum cholesterol -->
+            <div class="inf-control-group">
+              <div class="inf-label-row">
+                <span>Serum cholesterol (mg/dl):</span>
+                <span class="inf-val-badge" id="lblChol">240 mg/dl</span>
+              </div>
+              <input type="range" class="inf-slider" id="sliderChol" min="100" max="600" value="240" oninput="runLiveInference()">
+            </div>
+
+            <!-- 5. Fasting blood sugar > 120 mg/dl -->
+            <div class="inf-control-group full-width">
+              <div class="inf-label-row">
+                <span>Fasting blood sugar &gt; 120 mg/dl (fbs):</span>
+                <span class="inf-val-badge" id="lblFbs">No (0)</span>
+              </div>
+              <div class="inf-toggle-row">
+                <button type="button" class="inf-toggle-btn active" id="btnFbs0" onclick="setFbs(0)">No (≤ 120 mg/dl · 0)</button>
+                <button type="button" class="inf-toggle-btn" id="btnFbs1" onclick="setFbs(1)">Sí (&gt; 120 mg/dl · 1)</button>
+              </div>
+            </div>
+
+            <!-- SECCIÓN 2: EVALUACIÓN CARDÍACA Y ECG -->
+            <div class="inf-section-header">
+              <span>💓 2. Evaluación Cardíaca y ECG</span>
+            </div>
+
+            <!-- 6. Chest pain type -->
+            <div class="inf-control-group">
+              <div class="inf-label-row">
+                <span>Chest pain type:</span>
+              </div>
+              <select class="inf-select" id="selCp" onchange="runLiveInference()">
+                <option value="0">0 · Typical angina</option>
+                <option value="1">1 · Atypical angina</option>
+                <option value="2">2 · Non-anginal pain</option>
+                <option value="3">3 · Asymptomatic</option>
+              </select>
+            </div>
+
+            <!-- 7. Resting ECG results -->
+            <div class="inf-control-group">
+              <div class="inf-label-row">
+                <span>Resting ECG results:</span>
+              </div>
+              <select class="inf-select" id="selRestecg" onchange="runLiveInference()">
+                <option value="0">0 · Normal</option>
+                <option value="1">1 · ST-T abnormality</option>
+                <option value="2">2 · LV hypertrophy</option>
+              </select>
+            </div>
+
+            <!-- 8. Maximum heart rate achieved -->
+            <div class="inf-control-group full-width">
+              <div class="inf-label-row">
+                <span>Maximum heart rate achieved (thalach):</span>
+                <span class="inf-val-badge" id="lblThalach">150 bpm</span>
+              </div>
+              <input type="range" class="inf-slider" id="sliderThalach" min="60" max="220" value="150" oninput="runLiveInference()">
+            </div>
+
+            <!-- SECCIÓN 3: PRUEBAS DE ESFUERZO Y DIAGNÓSTICO -->
+            <div class="inf-section-header">
+              <span>🔬 3. Pruebas de Esfuerzo y Diagnóstico Avanzado</span>
+            </div>
+
+            <!-- 9. Exercise-induced angina -->
+            <div class="inf-control-group">
+              <div class="inf-label-row">
+                <span>Exercise-induced angina:</span>
+                <span class="inf-val-badge" id="lblExang">No (0)</span>
+              </div>
+              <div class="inf-toggle-row">
+                <button type="button" class="inf-toggle-btn active" id="btnExang0" onclick="setExang(0)">No (0)</button>
+                <button type="button" class="inf-toggle-btn" id="btnExang1" onclick="setExang(1)">Sí (1)</button>
+              </div>
+            </div>
+
+            <!-- 10. ST depression (oldpeak) -->
+            <div class="inf-control-group">
+              <div class="inf-label-row">
+                <span>ST depression (oldpeak):</span>
+                <span class="inf-val-badge" id="lblOldpeak">1.0 mm</span>
+              </div>
+              <input type="range" class="inf-slider" id="sliderOldpeak" min="0.0" max="6.2" step="0.1" value="1.0" oninput="runLiveInference()">
+            </div>
+
+            <!-- 11. Slope of the peak exercise ST segment -->
+            <div class="inf-control-group">
+              <div class="inf-label-row">
+                <span>Slope of ST segment:</span>
+              </div>
+              <select class="inf-select" id="selSlope" onchange="runLiveInference()">
+                <option value="0">0 · Upsloping</option>
+                <option value="1" selected>1 · Flat</option>
+                <option value="2">2 · Downsloping</option>
+              </select>
+            </div>
+
+            <!-- 12. Number of major vessels colored by fluoroscopy -->
+            <div class="inf-control-group">
+              <div class="inf-label-row">
+                <span>Major vessels (ca: 0-4):</span>
+              </div>
+              <select class="inf-select" id="selCa" onchange="runLiveInference()">
+                <option value="0" selected>0 vasos con fluoroscopia</option>
+                <option value="1">1 vaso coloreado</option>
+                <option value="2">2 vasos coloreados</option>
+                <option value="3">3 vasos coloreados</option>
+                <option value="4">4 vasos coloreados</option>
+              </select>
+            </div>
+
+            <!-- 13. Thalassemia test result -->
+            <div class="inf-control-group full-width">
+              <div class="inf-label-row">
+                <span>Thalassemia test result (thal):</span>
+              </div>
+              <select class="inf-select" id="selThal" onchange="runLiveInference()">
+                <option value="1">1 · Normal (Perfusión Miocárdica Intacta)</option>
+                <option value="2" selected>2 · Fixed defect (Defecto Fijo / Cicatriz)</option>
+                <option value="3">3 · Reversible defect (Defecto Reversible / Isquemia)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Columna Derecha: Monitor Predictivo y Triaje MLOps -->
+        <div class="card" style="background: rgba(11, 19, 38, 0.85); display: flex; flex-direction: column; gap: 10px;">
+          <div class="card-header" style="padding-bottom: 6px;">
+            <span class="card-title" style="color: #38bdf8;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+              Monitor Predictivo en Vivo &amp; Triaje
+            </span>
+            <span class="badge-pill success">scikit-learn · C=0.1</span>
+          </div>
+
+          <!-- Presets Clínicos Rápidos -->
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <div style="font-size: 10px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
+              Presets Clínicos Rápidos (Carga de las 13 Variables):
+            </div>
+            <div class="inf-presets">
+              <button type="button" class="inf-preset-btn" id="presetLow" onclick="loadClinicalPreset('low')">🟢 Sano (Bajo)</button>
+              <button type="button" class="inf-preset-btn active" id="presetMed" onclick="loadClinicalPreset('med')">🟡 Moderado</button>
+              <button type="button" class="inf-preset-btn" id="presetHigh" onclick="loadClinicalPreset('high')">🔴 Crítico (Alto)</button>
+            </div>
+          </div>
+
+          <!-- Panel de Resultados Dinámico -->
+          <div class="inf-result-panel" id="infResultPanel" style="border-left-color: #f59e0b;">
+            <div class="inf-result-header">
+              <div>
+                <div class="inf-score-title">Probabilidad Estimada de Cardiopatía (app.py)</div>
+                <div class="inf-category-text" id="infCategoryText">
+                  <span id="infCatIcon">🟡</span> <span id="infCatTitle" style="color: #fbbf24;">RIESGO MODERADO</span>
+                </div>
+              </div>
+              <div class="inf-score-pct" id="infScorePct" style="color: #fbbf24;">48.2%</div>
+            </div>
+
+            <div class="inf-meter-bg">
+              <div class="inf-meter-fill" id="infMeterFill" style="width: 48.2%; background: #f59e0b; box-shadow: 0 0 10px rgba(245, 158, 11, 0.6);"></div>
+            </div>
+
+            <div class="inf-recommendation" id="infRecommendation">
+              Factores de riesgo combinados en desarrollo. Se recomienda control estricto de presión/lípidos y prueba de esfuerzo no invasiva.
+            </div>
+          </div>
+
+          <!-- Ingeniería de Características en Vivo (Feature Engineering de train.py) -->
+          <div class="inf-derived-box">
+            <div class="inf-derived-title">
+              <span>Ingeniería de Características Derivadas (build_feature_row)</span>
+              <span style="color: #38bdf8; font-family: var(--font-mono);">+4 Features</span>
+            </div>
+            <div class="inf-derived-grid">
+              <div class="inf-derived-item">
+                <span class="inf-derived-lbl" title="trestbps / chol">bp_chol_ratio:</span>
+                <span class="inf-derived-val" id="lblRatio">0.54</span>
+              </div>
+              <div class="inf-derived-item">
+                <span class="inf-derived-lbl" title="220 - age">max_hr_expected:</span>
+                <span class="inf-derived-val" id="lblHrExp">170 bpm</span>
+              </div>
+              <div class="inf-derived-item">
+                <span class="inf-derived-lbl" title="max_hr_expected - thalach">hr_deficit:</span>
+                <span class="inf-derived-val" id="lblDeficit">+20 bpm</span>
+              </div>
+              <div class="inf-derived-item">
+                <span class="inf-derived-lbl" title="under_40, 40_49, 50_59, 60_plus">age_group:</span>
+                <span class="inf-derived-val" id="lblAgeGroup">50_59</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pipeline de Ingesta en app.py -->
+          <div style="display: flex; flex-direction: column; gap: 3px;">
+            <div style="font-size: 9.5px; color: var(--text-dim); text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">
+              Ciclo de Ejecución en Tiempo Real (app.py):
+            </div>
+            <div class="inf-pipeline-strip">
+              <div class="inf-pipeline-node">
+                <span class="inf-pipeline-num">01 · INGESTA</span>
+                <span class="inf-pipeline-txt">13 variables capturadas</span>
+              </div>
+              <div class="inf-pipeline-node">
+                <span class="inf-pipeline-num">02 · VAL</span>
+                <span class="inf-pipeline-txt">Rangos fisiológicos OK</span>
+              </div>
+              <div class="inf-pipeline-node">
+                <span class="inf-pipeline-num">03 · MODEL</span>
+                <span class="inf-pipeline-txt">StandardScaler + OHE</span>
+              </div>
+              <div class="inf-pipeline-node">
+                <span class="inf-pipeline-num">04 · SALIDA</span>
+                <span class="inf-pipeline-txt">Score continuo + triaje</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 3 (Tema 1 · Slide 3/3): RENDIMIENTO DEL MODELO -->
+    <div class="slide" data-theme="app" data-title="1.3 Rendimiento del Modelo y Métricas">
+      <div class="slide-header">
+        <div class="slide-meta">
+          <span class="slide-tag" style="background: rgba(14, 165, 233, 0.2); color: var(--c-app);">TEMA 1 · SLIDE 3 DE 3</span>
+          <span style="font-size: 13px; color: var(--text-dim);">FUNCIONAMIENTO DE LA APLICACIÓN</span>
+        </div>
+        <h2 class="slide-title">Rendimiento Predictivo y Calibración Clínica</h2>
+        <div class="summary-badge" style="border-color: var(--c-app);">
+          <span>💡 <strong>Idea Central:</strong> En salud preventiva, un falso negativo es crítico. El modelo fue optimizado con foco en Sensibilidad (Recall = 90.9%) y alta capacidad discriminativa (ROC-AUC = 0.8972) en datos no vistos.</span>
+        </div>
+      </div>
+
+      <div class="slide-body grid-2">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title" style="color: #38bdf8;">Métricas Oficiales en Hold-out Test Set</span>
+            <span class="badge-pill info">Evaluación Rigurosa</span>
+          </div>
+          <div class="metrics-grid">
+            <div class="metric-box">
+              <span class="metric-val" style="color: #38bdf8;">0.8972</span>
+              <span class="metric-label">ROC-AUC</span>
+              <span class="metric-hint">Excelente separación global entre clases</span>
+            </div>
+            <div class="metric-box" style="border-color: rgba(16, 185, 129, 0.3);">
+              <span class="metric-val" style="color: #34d399;">90.91%</span>
+              <span class="metric-label">Recall (Sensibilidad)</span>
+              <span class="metric-hint">Captura 9 de cada 10 pacientes en riesgo</span>
+            </div>
+            <div class="metric-box">
+              <span class="metric-val">85.25%</span>
+              <span class="metric-label">Accuracy Global</span>
+              <span class="metric-hint">Exactitud en conjunto independiente</span>
+            </div>
+            <div class="metric-box">
+              <span class="metric-val">0.8696</span>
+              <span class="metric-label">F1-Score Balanceado</span>
+              <span class="metric-hint">Equilibrio entre precisión y exhaustividad</span>
+            </div>
+          </div>
+
+          <div style="font-size: 11.5px; color: var(--text-dim); padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.05);">
+            *Evaluado sobre partición estratificada del 20% retenida (hold-out) que jamás participó en el ajuste de coeficientes.
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Pipeline de Inferencia en Producción</span>
+            <span class="badge-pill success">scikit-learn Pipeline</span>
+          </div>
+          <div class="terminal-card">
+            <div class="terminal-bar">
+              <div class="terminal-dot" style="background: #ef4444;"></div>
+              <div class="terminal-dot" style="background: #f59e0b;"></div>
+              <div class="terminal-dot" style="background: #10b981;"></div>
+              <span class="terminal-title">python train.py · Pipeline Architecture</span>
+            </div>
+            <div class="terminal-body">
+              <div class="cmd-line"><span class="cmd-comment"># 1. Transformación de entradas numéricas y categóricas</span></div>
+              <div class="cmd-line"><span class="cmd-text">pipeline = Pipeline([</span></div>
+              <div class="cmd-line">&nbsp;&nbsp;<span class="cmd-text">('imputer', SimpleImputer(strategy='median')),</span></div>
+              <div class="cmd-line">&nbsp;&nbsp;<span class="cmd-text">('scaler', StandardScaler()),</span></div>
+              <div class="cmd-line">&nbsp;&nbsp;<span class="cmd-text">('classifier', LogisticRegression(C=0.1, penalty='l2'))</span></div>
+              <div class="cmd-line"><span class="cmd-text">])</span></div>
+              <br>
+              <div class="cmd-line"><span class="cmd-comment"># Inferencia determinista sin drift de transformación</span></div>
+              <div class="cmd-line"><span class="cmd-prompt">&gt;&gt;&gt;</span> <span class="cmd-text">prob = model.predict_proba(patient_vector)[0][1]</span></div>
+              <div class="cmd-line"><span class="cmd-success">&gt;&gt;&gt; print(f"Cardio Risk Score: {prob*100:.1f}%")</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ─────────────────────────────────────────────────────────────
+         TEMA 2: FLUJOS AUTOMATIZADOS DE MANTENIMIENTO (3 SLIDES)
+         ───────────────────────────────────────────────────────────── -->
+
+    <!-- SLIDE 4 (Tema 2 · Slide 1/3): ESTRATEGIA DE REENTRENAMIENTO -->
+    <div class="slide" data-theme="maint" data-title="2.1 Estrategia de Reentrenamiento">
+      <div class="slide-header">
+        <div class="slide-meta">
+          <span class="slide-tag" style="background: rgba(168, 85, 247, 0.2); color: var(--c-maint);">TEMA 2 · SLIDE 1 DE 3</span>
+          <span style="font-size: 13px; color: var(--text-dim);">PIPELINES DE MANTENIMIENTO AUTOMATIZADO</span>
+        </div>
+        <h2 class="slide-title">Estrategia de Reentrenamiento y Mitigación de Drift</h2>
+        <div class="summary-badge" style="border-color: var(--c-maint);">
+          <span>💡 <strong>Idea Central:</strong> Los modelos de ML sufren degradación temporal (Data Drift y Concept Drift). El pipeline automatizado reentrena periódicamente los domingos a las 03:00 UTC sin requerir intervención humana.</span>
+        </div>
+      </div>
+
+      <div class="slide-body grid-2">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title" style="color: #c084fc;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              Orquestación y Disparadores del Ciclo
+            </span>
+            <span class="badge-pill purple">GitHub Actions Cron</span>
+          </div>
+          <ul class="feature-list">
+            <li>
+              <div class="bullet" style="background: rgba(168, 85, 247, 0.2); color: var(--c-maint);">1</div>
+              <div>
+                <strong>Disparador Programado (Cron):</strong> Ejecución fija semanal mediante la expresión <code>0 3 * * 0</code> (cada domingo a las 03:00 UTC), momento de bajo tráfico operativo en la infraestructura clínica.
+              </div>
+            </li>
+            <li>
+              <div class="bullet" style="background: rgba(168, 85, 247, 0.2); color: var(--c-maint);">2</div>
+              <div>
+                <strong>Ejecución Manual Bajo Demanda (workflow_dispatch):</strong> Permite a los ingenieros de datos disparar el pipeline con un solo clic ante la llegada de nuevos lotes de información o auditorías extraordinarias.
+              </div>
+            </li>
+            <li>
+              <div class="bullet" style="background: rgba(168, 85, 247, 0.2); color: var(--c-maint);">3</div>
+              <div>
+                <strong>Modo Dry-Run Auditable:</strong> Parámetro <code>--dry-run</code> en <code>retrain_pipeline.py</code> que simula todo el ciclo de ingesta y evaluación sin escribir modelos ni modificar producción.
+              </div>
+            </li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Fases del Pipeline de Mantenimiento</span>
+            <span class="badge-pill success">retrain_pipeline.py</span>
+          </div>
+          <div class="workflow-steps">
+            <div class="step-item">
+              <div class="step-num" style="background: rgba(168, 85, 247, 0.3); color: var(--c-maint);">1</div>
+              <div class="step-info">
+                <div class="step-heading">Ingesta y Actualización de Datos</div>
+                <div class="step-desc">Descarga y consolida el dataset actualizado validando tipos de datos y valores nulos.</div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num" style="background: rgba(168, 85, 247, 0.3); color: var(--c-maint);">2</div>
+              <div class="step-info">
+                <div class="step-heading">Reentrenamiento & Optimización</div>
+                <div class="step-desc">Ajusta hiperparámetros sobre nuevos datos mediante validación cruzada estratificada.</div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num" style="background: rgba(168, 85, 247, 0.3); color: var(--c-maint);">3</div>
+              <div class="step-info">
+                <div class="step-heading">Evaluación Rigurosa en Hold-out</div>
+                <div class="step-desc">Calcula ROC-AUC, Recall, F1 y Accuracy sobre partición de prueba independiente.</div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num" style="background: rgba(168, 85, 247, 0.3); color: var(--c-maint);">4</div>
+              <div class="step-info">
+                <div class="step-heading">Decisión Matemática de Promoción</div>
+                <div class="step-desc">Compara métricas contra el modelo en producción registrado en <code>model/registry.json</code>.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 5 (Tema 2 · Slide 2/3): REGLA CHAMPION VS CHALLENGER Y SIMULADOR -->
+    <div class="slide" data-theme="maint" data-title="2.2 Regla Champion vs Challenger">
+      <div class="slide-header">
+        <div class="slide-meta">
+          <span class="slide-tag" style="background: rgba(168, 85, 247, 0.2); color: var(--c-maint);">TEMA 2 · SLIDE 2 DE 3</span>
+          <span style="font-size: 13px; color: var(--text-dim);">PIPELINES DE MANTENIMIENTO AUTOMATIZADO</span>
+        </div>
+        <h2 class="slide-title">Regla de Promoción Estricta y Simulador Interactivo de Decisión</h2>
+        <div class="summary-badge" style="border-color: var(--c-maint);">
+          <span>💡 <strong>Idea Central:</strong> El nuevo modelo compite bajo igualdad de condiciones. Solo se promueve si supera al modelo activo por un margen mínimo estricto (+0.001 ROC-AUC); de lo contrario, se preserva el modelo actual sin alteración. ¡Experimenta con el simulador interactivo en tiempo real!</span>
+        </div>
+      </div>
+
+      <div class="slide-body grid-2">
+        <!-- Columna Izquierda: Criterio Matemático -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title" style="color: #c084fc;">Criterio Matemático de Decisión</span>
+            <span class="badge-pill warn">Tolerancia = 0.0010</span>
+          </div>
+          <div style="background: rgba(0, 0, 0, 0.35); padding: 13px; border-radius: 9px; border-left: 3px solid var(--c-maint); font-family: var(--font-mono); font-size: 12.5px; color: #f8fafc;">
+            ROC_AUC(Challenger) &gt; ROC_AUC(Champion) + 0.0010
+          </div>
+          <ul class="feature-list" style="margin-top: 3px;">
+            <li>
+              <div class="bullet" style="background: rgba(16, 185, 129, 0.2); color: var(--c-ci);">✓</div>
+              <div>
+                <strong>Supera el Umbral (&gt; 0.8910):</strong> El candidato es declarado nuevo <em>Champion</em>, se le asigna versión incremental (e.g. <code>v4</code>), se serializa el binario y se actualiza el alias productivo.
+              </div>
+            </li>
+            <li>
+              <div class="bullet" style="background: rgba(239, 68, 68, 0.2); color: var(--c-danger);">✕</div>
+              <div>
+                <strong>Empate o Inferior (&le; 0.8900):</strong> Se activa el <em>Descarte Seguro (Safe Discard / Rollback)</em>. El binario en producción permanece intacto, evitando regresiones por datos ruidosos.
+              </div>
+            </li>
+            <li>
+              <div class="bullet" style="background: rgba(245, 158, 11, 0.2); color: var(--c-test);">~</div>
+              <div>
+                <strong>Filtro de Ruido Numérico (0.8901 - 0.8910):</strong> Mejoras menores a 0.001 (0.1%) no justifican un despliegue, asegurando estabilidad operacional.
+              </div>
+            </li>
+          </ul>
+          <div style="font-size: 11px; color: var(--text-dim); border-top: 1px solid rgba(255,255,255,0.06); padding-top: 6px;">
+            *Implementado en función pura <code>decide_promotion(champion, candidate_metrics)</code> en <code>retrain_pipeline.py</code>.
+          </div>
+        </div>
+
+        <!-- Columna Derecha: Simulador de Promoción MLOps -->
+        <div class="card" style="background: rgba(9, 16, 32, 0.88);">
+          <div class="card-header">
+            <span class="card-title" style="color: #c084fc;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              Simulador MLOps: Champion vs Challenger
+            </span>
+            <span class="badge-pill purple">Live Decision Engine</span>
+          </div>
+
+          <div class="maint-sim-box">
+            <!-- Presets Rápidos -->
+            <div style="font-size: 10.5px; color: var(--text-muted); font-weight: 600;">ESCENARIOS DE PRUEBA RÁPIDOS:</div>
+            <div class="maint-presets">
+              <button class="maint-preset-btn active" id="btnCase1" onclick="setChallengerValue(0.9200)">🏆 Caso 1: 0.9200<br><span style="font-size:9.5px; opacity:0.8;">Promoción</span></button>
+              <button class="maint-preset-btn" id="btnCase2" onclick="setChallengerValue(0.8500)">🛡️ Caso 2: 0.8500<br><span style="font-size:9.5px; opacity:0.8;">Rollback</span></button>
+              <button class="maint-preset-btn" id="btnCase3" onclick="setChallengerValue(0.8900)">⚖️ Caso 3: 0.8900<br><span style="font-size:9.5px; opacity:0.8;">Empate</span></button>
+              <button class="maint-preset-btn" id="btnCase4" onclick="setChallengerValue(0.8905)">🔬 Caso 4: 0.8905<br><span style="font-size:9.5px; opacity:0.8;">Tolerancia</span></button>
+              <button class="maint-preset-btn" id="btnCase5" onclick="setChallengerValue(0.8915)">✨ Caso 5: 0.8915<br><span style="font-size:9.5px; opacity:0.8;">Apenas Pasa</span></button>
+              <button class="maint-preset-btn" id="btnCase6" onclick="setChallengerValue(0.9500)">🚀 Caso 6: 0.9500<br><span style="font-size:9.5px; opacity:0.8;">Súper Modelo</span></button>
+            </div>
+
+            <!-- Slider Continuo para Experimentar Libremente -->
+            <div class="maint-slider-row">
+              <div class="maint-slider-header">
+                <span style="color: var(--text-muted);">Ajustar ROC-AUC del Challenger:</span>
+                <span style="font-family: var(--font-mono); font-weight: 700; color: #c084fc; font-size: 13px;" id="lblChallengerVal">0.9200</span>
+              </div>
+              <input type="range" class="maint-slider" id="sliderChallenger" min="0.8000" max="0.9800" step="0.0005" value="0.9200" oninput="updateChallengerFromSlider(this.value)">
+              <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--text-dim); font-family: var(--font-mono);">
+                <span>0.8000</span>
+                <span>Umbral Corte: 0.8910</span>
+                <span>0.9800</span>
+              </div>
+            </div>
+
+            <!-- Gráfico Comparativo de Barras -->
+            <div class="compare-bars-box">
+              <div class="compare-bar-item">
+                <span class="compare-bar-label">👑 Champion (v3):</span>
+                <div class="compare-bar-track">
+                  <div class="compare-bar-fill" style="width: 89.0%; background: #6366f1;"></div>
+                </div>
+                <span class="compare-bar-val">0.8900</span>
+              </div>
+              <div class="compare-bar-item">
+                <span class="compare-bar-label">⚔️ Challenger:</span>
+                <div class="compare-bar-track">
+                  <div class="compare-bar-fill" id="barChallengerFill" style="width: 92.0%; background: #10b981;"></div>
+                </div>
+                <span class="compare-bar-val" id="barChallengerVal">0.9200</span>
+              </div>
+            </div>
+
+            <!-- Decisión en Vivo y Efectos MLOps -->
+            <div class="maint-decision-panel" id="maintDecisionPanel" style="border-color: #34d399;">
+              <div class="maint-decision-title" id="maintDecisionTitle" style="color: #34d399;">
+                <span>🟢</span> <span>DECISIÓN: PROMOCIÓN AUTORIZADA (Exit Code 0)</span>
+              </div>
+              <div class="maint-decision-desc" id="maintDecisionDesc">
+                Diferencial: <strong style="color:#34d399;">+0.0300</strong> · Supera holgadamente la cota exigida (+0.0010).
+              </div>
+              <div class="maint-actions-row" id="maintActionsRow">
+                <span class="badge-pill success">Incrementa a v4</span>
+                <span class="badge-pill success">Sobrescribe cardio_risk_model.joblib</span>
+                <span class="badge-pill success">Commit [skip ci]</span>
+                <span class="badge-pill success">Dispara SSH Deploy</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 6 (Tema 2 · Slide 3/3): REGISTRO Y AUTO-DEPLOY -->
+    <div class="slide" data-theme="maint" data-title="2.3 Versionado y Despliegue Autónomo">
+      <div class="slide-header">
+        <div class="slide-meta">
+          <span class="slide-tag" style="background: rgba(168, 85, 247, 0.2); color: var(--c-maint);">TEMA 2 · SLIDE 3 DE 3</span>
+          <span style="font-size: 13px; color: var(--text-dim);">PIPELINES DE MANTENIMIENTO AUTOMATIZADO</span>
+        </div>
+        <h2 class="slide-title">Registro de Modelos (Model Registry) y Despliegue Autónomo</h2>
+        <div class="summary-badge" style="border-color: var(--c-maint);">
+          <span>💡 <strong>Idea Central:</strong> Cada iteración del modelo queda auditada en un registro estructurado con trazabilidad completa; si hay promoción, un bot de GitHub Actions comitea el nuevo modelo y gatilla el auto-deploy por SSH.</span>
+        </div>
+      </div>
+
+      <div class="slide-body grid-2">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title" style="color: #c084fc;">Estructura del Registro (model/registry.json)</span>
+            <span class="badge-pill purple">Auditoría MLOps</span>
+          </div>
+          <div class="terminal-card">
+            <div class="terminal-bar">
+              <div class="terminal-dot" style="background: #ef4444;"></div>
+              <div class="terminal-dot" style="background: #f59e0b;"></div>
+              <div class="terminal-dot" style="background: #10b981;"></div>
+              <span class="terminal-title">model/registry.json (Fragmento)</span>
+            </div>
+            <div class="terminal-body">
+              <div class="cmd-line"><span class="cmd-text">{</span></div>
+              <div class="cmd-line">&nbsp;&nbsp;<span class="cmd-prompt">"champion":</span> <span class="cmd-text">"v3",</span></div>
+              <div class="cmd-line">&nbsp;&nbsp;<span class="cmd-prompt">"last_updated":</span> <span class="cmd-text">"2026-09-27T03:00:00Z",</span></div>
+              <div class="cmd-line">&nbsp;&nbsp;<span class="cmd-prompt">"history":</span> <span class="cmd-text">[</span></div>
+              <div class="cmd-line">&nbsp;&nbsp;&nbsp;&nbsp;<span class="cmd-text">{ "version": "v1", "roc_auc": 0.865 },</span></div>
+              <div class="cmd-line">&nbsp;&nbsp;&nbsp;&nbsp;<span class="cmd-text">{ "version": "v2", "roc_auc": 0.881 },</span></div>
+              <div class="cmd-line">&nbsp;&nbsp;&nbsp;&nbsp;<span class="cmd-text">{ "version": "v3", "roc_auc": 0.8972, "promoted": true }</span></div>
+              <div class="cmd-line">&nbsp;&nbsp;<span class="cmd-text">]</span></div>
+              <div class="cmd-line"><span class="cmd-text">}</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Secuencia de Despliegue Autónomo</span>
+            <span class="badge-pill success">Zero-Downtime Redeploy</span>
+          </div>
+          <div class="workflow-steps">
+            <div class="step-item">
+              <div class="step-num" style="background: rgba(168, 85, 247, 0.3); color: var(--c-maint);">1</div>
+              <div class="step-info">
+                <div class="step-heading">Detección de Artefacto Modificado</div>
+                <div class="step-desc">El workflow detecta si <code>cardio_risk_model.joblib</code> y <code>registry.json</code> sufrieron cambios tras la evaluación.</div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num" style="background: rgba(168, 85, 247, 0.3); color: var(--c-maint);">2</div>
+              <div class="step-info">
+                <div class="step-heading">Commit Automático [skip ci]</div>
+                <div class="step-desc">El bot <code>cardio-risk-maintenance-bot</code> comitea y pushea la nueva versión evitando loops infinitos de CI.</div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num" style="background: rgba(16, 185, 129, 0.3); color: var(--c-ci);">3</div>
+              <div class="step-info">
+                <div class="step-heading">Despliegue SSH a Servidor Cloud</div>
+                <div class="step-desc">Conexión cifrada a Ubuntu Server, ejecución de <code>docker compose up -d --build</code> y limpieza de imágenes obsoletas.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ─────────────────────────────────────────────────────────────
+         TEMA 3: FLUJOS AUTOMATIZADOS DE INTEGRACIÓN CONTINUA (3 SLIDES)
+         ───────────────────────────────────────────────────────────── -->
+
+    <!-- SLIDE 7 (Tema 3 · Slide 1/3): FILOSOFÍA Y DISPARADORES CI -->
+    <div class="slide" data-theme="ci" data-title="3.1 Disparadores y Calidad CI">
+      <div class="slide-header">
+        <div class="slide-meta">
+          <span class="slide-tag" style="background: rgba(16, 185, 129, 0.2); color: var(--c-ci);">TEMA 3 · SLIDE 1 DE 3</span>
+          <span style="font-size: 13px; color: var(--text-dim);">INTEGRACIÓN CONTINUA (CI/CD)</span>
+        </div>
+        <h2 class="slide-title">Filosofía y Disparadores del Pipeline CI</h2>
+        <div class="summary-badge" style="border-color: var(--c-ci);">
+          <span>💡 <strong>Idea Central:</strong> Cada cambio introducido al repositorio es sometido a un riguroso 'Quality Gate' automático en GitHub Actions, impidiendo que código roto o modelos defectuosos alcancen la rama principal.</span>
+        </div>
+      </div>
+
+      <div class="slide-body grid-2">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title" style="color: #34d399;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+              Disparadores Operacionales (.github/workflows/ci.yml)
+            </span>
+            <span class="badge-pill success">Trigger Matrix</span>
+          </div>
+          <ul class="feature-list">
+            <li>
+              <div class="bullet" style="background: rgba(16, 185, 129, 0.2); color: var(--c-ci);">1</div>
+              <div>
+                <strong>Push a la rama 'main':</strong> Valida que las integraciones directas o merges mantengan la suite de 21 tests verde y gatilla el job condicional de despliegue a producción.
+              </div>
+            </li>
+            <li>
+              <div class="bullet" style="background: rgba(16, 185, 129, 0.2); color: var(--c-ci);">2</div>
+              <div>
+                <strong>Pull Request contra 'main':</strong> Funciona como barrera infranqueable de revisión. No permite fusionar ramas si un solo test unitario, funcional o de build falla.
+              </div>
+            </li>
+            <li>
+              <div class="bullet" style="background: rgba(16, 185, 129, 0.2); color: var(--c-ci);">3</div>
+              <div>
+                <strong>Entorno Homogéneo y Caché:</strong> Ejecución sobre runner virtualizado <code>ubuntu-latest</code> con Python 3.11 y caché inteligente de dependencias pip para optimizar tiempos.
+              </div>
+            </li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Beneficios Clave para el Equipo TI</span>
+            <span class="badge-pill info">Gobernanza TI</span>
+          </div>
+          <div class="workflow-steps">
+            <div class="step-item">
+              <div class="step-num" style="background: rgba(16, 185, 129, 0.3); color: var(--c-ci);">🛡️</div>
+              <div class="step-info">
+                <div class="step-heading">Detección Inmediata de Regresiones</div>
+                <div class="step-desc">El desarrollador recibe feedback visual en menos de 2 minutos sobre el impacto de su commit.</div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num" style="background: rgba(16, 185, 129, 0.3); color: var(--c-ci);">🔒</div>
+              <div class="step-info">
+                <div class="step-heading">Inmutabilidad de Artefactos</div>
+                <div class="step-desc">Garantiza que la imagen de Docker generada es idéntica entre entornos de test y producción.</div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num" style="background: rgba(16, 185, 129, 0.3); color: var(--c-ci);">📈</div>
+              <div class="step-info">
+                <div class="step-heading">Trazabilidad Total de Cambios</div>
+                <div class="step-desc">Historial auditable en GitHub Actions enlazado al commit SHA del desarrollador.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 8 (Tema 3 · Slide 2/3): FASES DEL PIPELINE CI -->
+    <div class="slide" data-theme="ci" data-title="3.2 Fases del Pipeline: Test a Docker">
+      <div class="slide-header">
+        <div class="slide-meta">
+          <span class="slide-tag" style="background: rgba(16, 185, 129, 0.2); color: var(--c-ci);">TEMA 3 · SLIDE 2 DE 3</span>
+          <span style="font-size: 13px; color: var(--text-dim);">INTEGRACIÓN CONTINUA (CI/CD)</span>
+        </div>
+        <h2 class="slide-title">Estructura de Fases: De Pruebas Unitarias a Docker Build</h2>
+        <div class="summary-badge" style="border-color: var(--c-ci);">
+          <span>💡 <strong>Idea Central:</strong> El flujo está estructurado en jobs dependientes y encadenados (needs: test). Si la suite de 21 tests no pasa, el build del contenedor se detiene inmediatamente, ahorrando recursos computacionales.</span>
+        </div>
+      </div>
+
+      <div class="slide-body grid-2">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title" style="color: #34d399;">Job 1: Run test suite (pytest -v)</span>
+            <span class="badge-pill success">21 Tests en Paralelo</span>
+          </div>
+          <div class="terminal-card">
+            <div class="terminal-bar">
+              <div class="terminal-dot" style="background: #ef4444;"></div>
+              <div class="terminal-dot" style="background: #f59e0b;"></div>
+              <div class="terminal-dot" style="background: #10b981;"></div>
+              <span class="terminal-title">CI Job: test (Ubuntu Runner)</span>
+            </div>
+            <div class="terminal-body">
+              <div class="cmd-line"><span class="cmd-prompt">$</span> <span class="cmd-text">python train.py</span> <span class="cmd-comment"># Build efímero de prueba</span></div>
+              <div class="cmd-line"><span class="cmd-prompt">$</span> <span class="cmd-text">pytest test_app.py -v</span></div>
+              <div class="cmd-line"><span class="cmd-success">test_app.py::test_valid_input_row PASSED [ 9%]</span></div>
+              <div class="cmd-line"><span class="cmd-success">test_app.py::test_streamlit_app_smoke PASSED [52%]</span></div>
+              <div class="cmd-line"><span class="cmd-prompt">$</span> <span class="cmd-text">pytest test_maintenance_ci.py -v</span></div>
+              <div class="cmd-line"><span class="cmd-success">test_maintenance_ci.py::test_case1_promotion PASSED [75%]</span></div>
+              <div class="cmd-line"><span class="cmd-success">test_maintenance_ci.py::test_case2_rejected PASSED [85%]</span></div>
+              <div class="cmd-line"><span class="cmd-success">test_maintenance_ci.py::test_case3_workflows PASSED [100%]</span></div>
+              <div class="cmd-line"><span class="cmd-success">=== 21 passed in 4.32s ===</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Job 2: Build Docker image (needs: test)</span>
+            <span class="badge-pill info">docker/build-push-action</span>
+          </div>
+          <div class="workflow-steps">
+            <div class="step-item">
+              <div class="step-num" style="background: rgba(16, 185, 129, 0.3); color: var(--c-ci);">1</div>
+              <div class="step-info">
+                <div class="step-heading">Setup Docker Buildx</div>
+                <div class="step-desc">Inicializa motor de construcción avanzado con optimización de capas y cache multietapa.</div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num" style="background: rgba(16, 185, 129, 0.3); color: var(--c-ci);">2</div>
+              <div class="step-info">
+                <div class="step-heading">Construcción Hermética del Contenedor</div>
+                <div class="step-desc">Compila el <code>Dockerfile</code> basado en <code>python:3.11-slim</code>, exponiendo el puerto 8501.</div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num" style="background: rgba(16, 185, 129, 0.3); color: var(--c-ci);">3</div>
+              <div class="step-info">
+                <div class="step-heading">Tagging y Validación Sin Push</div>
+                <div class="step-desc">Etiqueta <code>cardio-risk-app:ci</code> validando que el empaquetado sea 100% funcional.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 9 (Tema 3 · Slide 3/3): DESPLIEGUE CONTINUO CD -->
+    <div class="slide" data-theme="ci" data-title="3.3 Despliegue Continuo (CD)">
+      <div class="slide-header">
+        <div class="slide-meta">
+          <span class="slide-tag" style="background: rgba(16, 185, 129, 0.2); color: var(--c-ci);">TEMA 3 · SLIDE 3 DE 3</span>
+          <span style="font-size: 13px; color: var(--text-dim);">INTEGRACIÓN CONTINUA (CI/CD)</span>
+        </div>
+        <h2 class="slide-title">Despliegue Continuo (CD) y Paridad Dev-Prod</h2>
+        <div class="summary-badge" style="border-color: var(--c-ci);">
+          <span>💡 <strong>Idea Central:</strong> El despliegue a producción se realiza automáticamente mediante SSH hacia el servidor Ubuntu, ejecutando docker-compose para garantizar zero-downtime y paridad exacta entre desarrollo y producción.</span>
+        </div>
+      </div>
+
+      <div class="slide-body grid-2">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title" style="color: #34d399;">Job 3: Deploy to Cloud Ubuntu Server</span>
+            <span class="badge-pill warn">if: branch == 'main'</span>
+          </div>
+          <div class="terminal-card">
+            <div class="terminal-bar">
+              <div class="terminal-dot" style="background: #ef4444;"></div>
+              <div class="terminal-dot" style="background: #f59e0b;"></div>
+              <div class="terminal-dot" style="background: #10b981;"></div>
+              <span class="terminal-title">SSH Remote Script (appleboy/ssh-action)</span>
+            </div>
+            <div class="terminal-body">
+              <div class="cmd-line"><span class="cmd-comment"># 1. Sincronización atómica con rama principal</span></div>
+              <div class="cmd-line"><span class="cmd-prompt">&gt;</span> <span class="cmd-text">git fetch origin main &amp;&amp; git reset --hard origin/main</span></div>
+              <br>
+              <div class="cmd-line"><span class="cmd-comment"># 2. Recreación del servicio sin caída de red</span></div>
+              <div class="cmd-line"><span class="cmd-prompt">&gt;</span> <span class="cmd-text">docker compose down</span></div>
+              <div class="cmd-line"><span class="cmd-prompt">&gt;</span> <span class="cmd-text">docker compose up -d --build</span></div>
+              <br>
+              <div class="cmd-line"><span class="cmd-comment"># 3. Limpieza de imágenes huérfanas en servidor</span></div>
+              <div class="cmd-line"><span class="cmd-prompt">&gt;</span> <span class="cmd-text">docker image prune -f</span></div>
+              <div class="cmd-line"><span class="cmd-success">[SUCCESS] Cardio Risk Container Running on :8501</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Garantías Operacionales de Entrega</span>
+            <span class="badge-pill success">Cloud Architecture</span>
+          </div>
+          <ul class="feature-list">
+            <li>
+              <div class="bullet" style="background: rgba(16, 185, 129, 0.2); color: var(--c-ci);">✓</div>
+              <div>
+                <strong>Cero Configuración Manual en Servidor:</strong> Todo el ciclo de vida de la aplicación está codificado en el repositorio (Infrastructure as Code - IaC).
+              </div>
+            </li>
+            <li>
+              <div class="bullet" style="background: rgba(16, 185, 129, 0.2); color: var(--c-ci);">✓</div>
+              <div>
+                <strong>Seguridad y Secretos Cifrados:</strong> Las credenciales del host (IP, usuario SSH, llave privada RSA) residen exclusivamente en GitHub Encrypted Secrets.
+              </div>
+            </li>
+            <li>
+              <div class="bullet" style="background: rgba(16, 185, 129, 0.2); color: var(--c-ci);">✓</div>
+              <div>
+                <strong>Aislamiento Total:</strong> Si el contenedor falla, el host Ubuntu permanece intacto; docker-compose gestiona políticas de reinicio automático <code>unless-stopped</code>.
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ─────────────────────────────────────────────────────────────
+         TEMA 4: PRUEBAS DE FUNCIONAMIENTO - 3 CASOS (3 SLIDES)
+         ───────────────────────────────────────────────────────────── -->
+
+    <!-- SLIDE 10 (Tema 4 · Slide 1/3): CASO 1 · PROMOCIÓN EXITOSA -->
+    <div class="slide" data-theme="test" data-title="4.1 Caso 1: Promoción Exitosa">
+      <div class="slide-header">
+        <div class="slide-meta">
+          <span class="slide-tag" style="background: rgba(245, 158, 11, 0.2); color: var(--c-test);">TEMA 4 · SLIDE 1 DE 3</span>
+          <span style="font-size: 13px; color: var(--text-dim);">PRUEBAS DE FUNCIONAMIENTO (RÚBRICA UNIDAD II)</span>
+        </div>
+        <h2 class="slide-title">Caso 1: Promoción Exitosa de un Modelo Candidato</h2>
+        <div class="summary-badge" style="border-color: var(--c-test);">
+          <span>💡 <strong>Idea Central:</strong> Verificación de que ante la llegada de nuevos datos donde el Challenger demuestra superioridad métrica real (&gt; tolerancia), el pipeline promueve el modelo, actualiza el registro y dispara el despliegue.</span>
+        </div>
+      </div>
+
+      <div class="slide-body grid-2">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title" style="color: #fbbf24;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              Escenario y Aserción en Código
+            </span>
+            <span class="badge-pill warn">TestMaintenanceCase1PromotionWhenBetter</span>
+          </div>
+          <div class="terminal-card">
+            <div class="terminal-bar">
+              <div class="terminal-dot" style="background: #ef4444;"></div>
+              <div class="terminal-dot" style="background: #f59e0b;"></div>
+              <div class="terminal-dot" style="background: #10b981;"></div>
+              <span class="terminal-title">test_maintenance_ci.py (Caso 1)</span>
+            </div>
+            <div class="terminal-body">
+              <div class="cmd-line"><span class="cmd-comment"># Champion actual registrado: ROC-AUC = 0.8900</span></div>
+              <div class="cmd-line"><span class="cmd-text">candidate = {"roc_auc": 0.9200, "accuracy": 0.88, "f1_score": 0.89}</span></div>
+              <br>
+              <div class="cmd-line"><span class="cmd-comment"># Aserción 1: Debe retornar True al superar holgadamente (+0.0300)</span></div>
+              <div class="cmd-line"><span class="cmd-text">assert decide_promotion(CHAMPION, candidate) is True</span></div>
+              <br>
+              <div class="cmd-line"><span class="cmd-comment"># Aserción 2: Primer modelo (cold start sin campeón previo)</span></div>
+              <div class="cmd-line"><span class="cmd-text">assert decide_promotion(None, candidate) is True</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Impacto Operacional Comprobado</span>
+            <span class="badge-pill success">Salida: Exit Code 0</span>
+          </div>
+          <ul class="feature-list">
+            <li>
+              <div class="bullet" style="background: rgba(16, 185, 129, 0.2); color: var(--c-ci);">✓</div>
+              <div>
+                <strong>Creación del Artefacto de Versión:</strong> Serializa el modelo como <code>model/registry/v4/cardio_risk_model.joblib</code> para permitir auditorías retrospectivas.
+              </div>
+            </li>
+            <li>
+              <div class="bullet" style="background: rgba(16, 185, 129, 0.2); color: var(--c-ci);">✓</div>
+              <div>
+                <strong>Actualización de Alias de Producción:</strong> Sobrescribe <code>model/cardio_risk_model.joblib</code>, que es el archivo que <code>app.py</code> carga en memoria.
+              </div>
+            </li>
+            <li>
+              <div class="bullet" style="background: rgba(16, 185, 129, 0.2); color: var(--c-ci);">✓</div>
+              <div>
+                <strong>Disparo de Redeploy:</strong> El workflow detecta modificaciones en <code>model/</code> y activa el paso de despliegue a producción de forma autónoma.
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 11 (Tema 4 · Slide 2/3): CASO 2 · DESCARTE SEGURO -->
+    <div class="slide" data-theme="test" data-title="4.2 Caso 2: Rollback Seguro">
+      <div class="slide-header">
+        <div class="slide-meta">
+          <span class="slide-tag" style="background: rgba(245, 158, 11, 0.2); color: var(--c-test);">TEMA 4 · SLIDE 1 DE 3</span>
+          <span style="font-size: 13px; color: var(--text-dim);">PRUEBAS DE FUNCIONAMIENTO (RÚBRICA UNIDAD II)</span>
+        </div>
+        <h2 class="slide-title">Caso 2: Descarte Seguro y Preservación de Producción</h2>
+        <div class="summary-badge" style="border-color: var(--c-test);">
+          <span>💡 <strong>Idea Central:</strong> Blindaje ante datos ruidosos o modelos degradados. Si el candidato resulta inferior, empata o mejora por debajo de la tolerancia (+0.001), se rechaza y producción queda 100% intacta.</span>
+        </div>
+      </div>
+
+      <div class="slide-body grid-2">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title" style="color: #fbbf24;">Aserciones en Código (3 Sub-escenarios)</span>
+            <span class="badge-pill warn">TestMaintenanceCase2NoPromotion</span>
+          </div>
+          <div class="terminal-card">
+            <div class="terminal-bar">
+              <div class="terminal-dot" style="background: #ef4444;"></div>
+              <div class="terminal-dot" style="background: #f59e0b;"></div>
+              <div class="terminal-dot" style="background: #10b981;"></div>
+              <span class="terminal-title">test_maintenance_ci.py (Caso 2)</span>
+            </div>
+            <div class="terminal-body">
+              <div class="cmd-line"><span class="cmd-comment"># Subcaso 2.1: Modelo claramente inferior (0.8500 &lt; 0.8900)</span></div>
+              <div class="cmd-line"><span class="cmd-text">assert decide_promotion(CHAMPION, {"roc_auc": 0.85}) is False</span></div>
+              <br>
+              <div class="cmd-line"><span class="cmd-comment"># Subcaso 2.2: Empate numérico exacto (0.8900 == 0.8900)</span></div>
+              <div class="cmd-line"><span class="cmd-text">assert decide_promotion(CHAMPION, {"roc_auc": 0.89}) is False</span></div>
+              <br>
+              <div class="cmd-line"><span class="cmd-comment"># Subcaso 2.3: Mejora marginal insignificante (+0.0005 &lt; 0.001)</span></div>
+              <div class="cmd-line"><span class="cmd-text">assert decide_promotion(CHAMPION, {"roc_auc": 0.8905}) is False</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Mecanismo de 'Safe Discard' en GitHub Actions</span>
+            <span class="badge-pill success">No-Op Seguro</span>
+          </div>
+          <div class="workflow-steps">
+            <div class="step-item">
+              <div class="step-num" style="background: rgba(239, 68, 68, 0.2); color: var(--c-danger);">1</div>
+              <div class="step-info">
+                <div class="step-heading">Rechazo de Promoción Limpio</div>
+                <div class="step-desc">El script emite mensaje explicativo de descarte y finaliza de manera controlada.</div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num" style="background: rgba(245, 158, 11, 0.2); color: var(--c-test);">2</div>
+              <div class="step-info">
+                <div class="step-heading">Detección de No Cambios (git status)</div>
+                <div class="step-desc">El paso <code>Detect changes</code> verifica que los archivos de <code>model/</code> no sufrieron alteración (output: <code>changed=false</code>).</div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num" style="background: rgba(16, 185, 129, 0.2); color: var(--c-ci);">3</div>
+              <div class="step-info">
+                <div class="step-heading">Cancelación Segura de Deploy</div>
+                <div class="step-desc">Los pasos de commit y despliegue SSH son ignorados condicionalmente, asegurando cero riesgo de regresión en producción.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 12 (Tema 4 · Slide 3/3): CASO 3 · INTEGRIDAD CI -->
+    <div class="slide" data-theme="test" data-title="4.3 Caso 3: Integridad CI">
+      <div class="slide-header">
+        <div class="slide-meta">
+          <span class="slide-tag" style="background: rgba(245, 158, 11, 0.2); color: var(--c-test);">TEMA 4 · SLIDE 3 DE 3</span>
+          <span style="font-size: 13px; color: var(--text-dim);">PRUEBAS DE FUNCIONAMIENTO (RÚBRICA UNIDAD II)</span>
+        </div>
+        <h2 class="slide-title">Caso 3: Integridad y Sintaxis de Workflows CI/CD</h2>
+        <div class="summary-badge" style="border-color: var(--c-test);">
+          <span>💡 <strong>Idea Central:</strong> Pruebas estáticas que validan que los archivos YAML de GitHub Actions existen, son sintácticamente válidos ante PyYAML y poseen los triggers, jobs y pasos obligatorios configurados.</span>
+        </div>
+      </div>
+
+      <div class="slide-body grid-2">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title" style="color: #fbbf24;">Verificaciones Sintácticas y Estructurales</span>
+            <span class="badge-pill warn">TestCICase3WorkflowsAreValid</span>
+          </div>
+          <ul class="feature-list">
+            <li>
+              <div class="bullet" style="background: rgba(245, 158, 11, 0.2); color: var(--c-test);">1</div>
+              <div>
+                <strong>Existencia y Parseo YAML sin Errores:</strong> Carga <code>ci.yml</code> y <code>maintenance.yml</code> con <code>yaml.safe_load()</code> asegurando cero errores tipográficos en llaves o indentación.
+              </div>
+            </li>
+            <li>
+              <div class="bullet" style="background: rgba(245, 158, 11, 0.2); color: var(--c-test);">2</div>
+              <div>
+                <strong>Triggers de CI Confirmados:</strong> Valida programáticamente que la lista de eventos incluya tanto <code>push</code> como <code>pull_request</code> en la rama main.
+              </div>
+            </li>
+            <li>
+              <div class="bullet" style="background: rgba(245, 158, 11, 0.2); color: var(--c-test);">3</div>
+              <div>
+                <strong>Presencia de Suites de Prueba:</strong> Asegura mediante aserciones de texto que los comandos <code>pytest test_app.py</code> y <code>pytest test_maintenance_ci.py</code> forman parte inamovible del workflow.
+              </div>
+            </li>
+            <li>
+              <div class="bullet" style="background: rgba(245, 158, 11, 0.2); color: var(--c-test);">4</div>
+              <div>
+                <strong>Programación Cron Verificada:</strong> Valida que <code>maintenance.yml</code> posea la directiva <code>schedule</code> y permita ejecución manual mediante <code>workflow_dispatch</code>.
+              </div>
+            </li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Resumen de Cobertura Total de Pruebas</span>
+            <span class="badge-pill success">21 Tests en Suite Oficial</span>
+          </div>
+          <div class="metrics-grid">
+            <div class="metric-box">
+              <span class="metric-val" style="color: #38bdf8;">11</span>
+              <span class="metric-label">test_app.py</span>
+              <span class="metric-hint">Validación de inputs, inferencia y smoke test Streamlit</span>
+            </div>
+            <div class="metric-box" style="border-color: rgba(245, 158, 11, 0.3);">
+              <span class="metric-val" style="color: #fbbf24;">10</span>
+              <span class="metric-label">test_maintenance_ci.py</span>
+              <span class="metric-hint">Promoción, rollback seguro y validez sintáctica de CI</span>
+            </div>
+          </div>
+
+          <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 10px; padding: 12px; margin-top: 4px;">
+            <div style="color: #34d399; font-weight: 700; font-size: 13px; display: flex; align-items: center; gap: 8px;">
+              <span>✅ 100% de Pruebas Pasando</span>
+            </div>
+            <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 4px;">
+              La totalidad de las 21 pruebas se ejecutan de manera idéntica en la máquina local de desarrollo y en el contenedor runner de GitHub Actions.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ─────────────────────────────────────────────────────────────
+         SLIDE 13: CONCLUSIONES Y SÍNTESIS DE VALOR MLOPS
+         ───────────────────────────────────────────────────────────── -->
+    <div class="slide" data-theme="intro" data-title="Conclusiones · Síntesis MLOps">
+      <div class="slide-header">
+        <div class="slide-meta">
+          <span class="slide-tag" style="background: rgba(99, 102, 241, 0.2); color: var(--c-indigo);">SÍNTESIS FINAL</span>
+          <span style="font-size: 13px; color: var(--text-dim);">IMPACTO TÉCNICO Y OPERACIONAL</span>
+        </div>
+        <h2 class="slide-title">Conclusiones: MLOps de Ciclo Cerrado y Grado Productivo</h2>
+        <div class="summary-badge" style="border-color: var(--c-indigo);">
+          <span>💡 <strong>Idea Central:</strong> El proyecto trasciende un script analítico convencional para convertirse en un producto de software robusto, resiliente y 100% automatizado para el equipo TI.</span>
+        </div>
+      </div>
+
+      <div class="slide-body grid-2-equal">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title" style="color: #818cf8;">Los 4 Pilares de la Solución</span>
+            <span class="badge-pill info">Excelencia Operacional</span>
+          </div>
+          <ul class="feature-list">
+            <li>
+              <div class="bullet" style="background: rgba(14, 165, 233, 0.2); color: var(--c-app);">1</div>
+              <div>
+                <strong>Fiabilidad Médica:</strong> Recall de 90.9% y validación estricta de límites fisiológicos para proteger al paciente y al profesional de la salud.
+              </div>
+            </li>
+            <li>
+              <div class="bullet" style="background: rgba(168, 85, 247, 0.2); color: var(--c-maint);">2</div>
+              <div>
+                <strong>Mantenimiento Autónomo:</strong> Ciclo semanal de reentrenamiento con criterio matemático estricto que elimina el mantenimiento manual.
+              </div>
+            </li>
+            <li>
+              <div class="bullet" style="background: rgba(16, 185, 129, 0.2); color: var(--c-ci);">3</div>
+              <div>
+                <strong>Integración Continua Segura:</strong> Cero despliegues de código roto gracias a suites automatizadas de tests y build de contenedores.
+              </div>
+            </li>
+            <li>
+              <div class="bullet" style="background: rgba(245, 158, 11, 0.2); color: var(--c-test);">4</div>
+              <div>
+                <strong>Resiliencia Demostrada:</strong> 3 casos de prueba específicos que certifican promociones válidas, descarte sin daño y estabilidad de flujos.
+              </div>
+            </li>
+          </ul>
+        </div>
+
+        <div class="card" style="justify-content: center; align-items: center; text-align: center; gap: 16px;">
+          <div style="font-size: 50px;">🚀</div>
+          <h3 style="font-family: var(--font-heading); font-size: 22px; color: #fff;">Listo para Operación y Auditoría TI</h3>
+          <p style="font-size: 13.5px; color: var(--text-muted); max-width: 420px; line-height: 1.55;">
+            Cumple al 100% con los requerimientos técnicos y de gobernanza de la Unidad II, garantizando continuidad operativa y evolución continua del modelo.
+          </p>
+          <div style="display: flex; gap: 10px; margin-top: 8px;">
+            <button class="nav-btn primary" onclick="goToSlide(0)">↺ Volver a la Portada</button>
+            <button class="nav-btn" onclick="toggleToc()">☰ Ver Índice Completo</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- BOTTOM FOOTER & NAVIGATION DOCK -->
+  <footer>
+    <div class="footer-left">
+      <button class="topic-tab-btn" onclick="goToSlide(0)" id="tab0">Portada</button>
+      <button class="topic-tab-btn" onclick="goToSlide(1)" id="tab1">1. App (3)</button>
+      <button class="topic-tab-btn" onclick="goToSlide(4)" id="tab2">2. Mantenimiento (3)</button>
+      <button class="topic-tab-btn" onclick="goToSlide(7)" id="tab3">3. CI/CD (3)</button>
+      <button class="topic-tab-btn" onclick="goToSlide(10)" id="tab4">4. Pruebas (3)</button>
+      <button class="topic-tab-btn" onclick="goToSlide(13)" id="tab5">Síntesis</button>
+    </div>
+
+    <div class="dots-container" id="dotsContainer">
+      <!-- Generated by JS -->
+    </div>
+
+    <div class="nav-buttons">
+      <button class="nav-btn" id="btnPrev" title="Diapositiva Anterior (←)">
+        <span>←</span> Anterior
+      </button>
+      <button class="nav-btn primary" id="btnNext" title="Siguiente Diapositiva (→ o Espacio)">
+        Siguiente <span>→</span>
+      </button>
+    </div>
+  </footer>
+
+  <!-- INTERACTIVE PRESENTATION LOGIC -->
+  <script>
+    const slides = document.querySelectorAll('.slide');
+    const totalSlides = slides.length;
+    let currentSlide = 0;
+
+    const progressBar = document.getElementById('progressBar');
+    const slideCounter = document.getElementById('slideCounter');
+    const headerTopicPill = document.getElementById('headerTopicPill');
+    const dotsContainer = document.getElementById('dotsContainer');
+    const tocList = document.getElementById('tocList');
+    const tocDrawer = document.getElementById('tocDrawer');
+
+    // Build dots and TOC dynamically
+    slides.forEach((slide, index) => {
+      // Dots
+      const dot = document.createElement('div');
+      dot.classList.add('dot');
+      const theme = slide.getAttribute('data-theme');
+      if (theme) dot.classList.add(`group-${theme}`);
+      dot.title = `Ir a diapositiva ${index + 1}: ${slide.getAttribute('data-title') || ''}`;
+      dot.addEventListener('click', () => goToSlide(index));
+      dotsContainer.appendChild(dot);
+
+      // TOC items
+      const li = document.createElement('li');
+      li.classList.add('toc-item');
+      li.innerHTML = `
+        <span style="font-family: var(--font-mono); font-size: 11px; opacity: 0.6;">${String(index + 1).padStart(2, '0')}</span>
+        <span>${slide.getAttribute('data-title') || 'Diapositiva ' + (index + 1)}</span>
+      `;
+      li.addEventListener('click', () => {
+        goToSlide(index);
+        toggleToc(false);
+      });
+      tocList.appendChild(li);
+    });
+
+    const dots = document.querySelectorAll('.dot');
+    const tocItems = document.querySelectorAll('.toc-item');
+
+    function updatePresentation() {
+      slides.forEach((slide, idx) => {
+        slide.classList.toggle('active', idx === currentSlide);
+      });
+
+      dots.forEach((dot, idx) => {
+        dot.classList.toggle('active', idx === currentSlide);
+      });
+
+      tocItems.forEach((item, idx) => {
+        item.classList.toggle('active', idx === currentSlide);
+      });
+
+      // Progress bar
+      const progress = ((currentSlide) / (totalSlides - 1)) * 100;
+      progressBar.style.width = `${progress}%`;
+
+      // Counter
+      slideCounter.textContent = `${String(currentSlide + 1).padStart(2, '0')} / ${String(totalSlides).padStart(2, '0')}`;
+
+      // Topic pill in header
+      const activeSlide = slides[currentSlide];
+      const theme = activeSlide.getAttribute('data-theme') || 'intro';
+      const title = activeSlide.getAttribute('data-title') || '';
+      
+      headerTopicPill.className = `topic-pill theme-${theme}`;
+      headerTopicPill.innerHTML = `<span>${title}</span>`;
+
+      // Update footer topic tabs
+      document.querySelectorAll('.topic-tab-btn').forEach(btn => btn.classList.remove('active'));
+      if (currentSlide === 0) document.getElementById('tab0').classList.add('active');
+      else if (currentSlide >= 1 && currentSlide <= 3) document.getElementById('tab1').classList.add('active');
+      else if (currentSlide >= 4 && currentSlide <= 6) document.getElementById('tab2').classList.add('active');
+      else if (currentSlide >= 7 && currentSlide <= 9) document.getElementById('tab3').classList.add('active');
+      else if (currentSlide >= 10 && currentSlide <= 12) document.getElementById('tab4').classList.add('active');
+      else if (currentSlide === 13) document.getElementById('tab5').classList.add('active');
+
+      // Scroll slide body to top on slide change
+      const activeBody = activeSlide.querySelector('.slide-body');
+      if (activeBody) activeBody.scrollTop = 0;
+    }
+
+    function goToSlide(index) {
+      if (index >= 0 && index < totalSlides) {
+        currentSlide = index;
+        updatePresentation();
+      }
+    }
+
+    function nextSlide() {
+      if (currentSlide < totalSlides - 1) {
+        currentSlide++;
+        updatePresentation();
+      }
+    }
+
+    function prevSlide() {
+      if (currentSlide > 0) {
+        currentSlide--;
+        updatePresentation();
+      }
+    }
+
+    function toggleToc(forceState) {
+      if (typeof forceState === 'boolean') {
+        tocDrawer.classList.toggle('open', forceState);
+      } else {
+        tocDrawer.classList.toggle('open');
+      }
+    }
+
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => {
+          console.warn('Error attempting fullscreen:', err);
+        });
+      } else {
+        document.exitFullscreen();
+      }
+    }
+
+    // Button event listeners
+    document.getElementById('btnNext').addEventListener('click', nextSlide);
+    document.getElementById('btnPrev').addEventListener('click', prevSlide);
+    document.getElementById('btnToc').addEventListener('click', () => toggleToc());
+    document.getElementById('btnCloseToc').addEventListener('click', () => toggleToc(false));
+    document.getElementById('btnFullscreen').addEventListener('click', toggleFullscreen);
+
+    // Keyboard navigation
+    document.addEventListener('keydown', (e) => {
+      // Don't trigger if focus is in an input or slider
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+      switch(e.key) {
+        case 'ArrowRight':
+        case 'PageDown':
+        case ' ':
+        case 'Enter':
+          e.preventDefault();
+          nextSlide();
+          break;
+        case 'ArrowLeft':
+        case 'PageUp':
+        case 'Backspace':
+          e.preventDefault();
+          prevSlide();
+          break;
+        case 'Home':
+          e.preventDefault();
+          goToSlide(0);
+          break;
+        case 'End':
+          e.preventDefault();
+          goToSlide(totalSlides - 1);
+          break;
+        case 't':
+        case 'T':
+        case 'm':
+        case 'M':
+          e.preventDefault();
+          toggleToc();
+          break;
+        case 'f':
+        case 'F':
+          e.preventDefault();
+          toggleFullscreen();
+          break;
+        case '1':
+          goToSlide(1);
+          break;
+        case '2':
+          goToSlide(4);
+          break;
+        case '3':
+          goToSlide(7);
+          break;
+        case '4':
+          goToSlide(10);
+          break;
+      }
+    });
+
+    // ==========================================
+    // 1. CLINICAL INFERENCE SIMULATOR (SLIDE 2) - 13 VARIABLES
+    // ==========================================
+    let currentSex = 1;
+    let currentFbs = 0;
+    let currentExang = 0;
+
+    const clinicalPresets = {
+      low: {
+        age: 36,
+        sex: 0,
+        cp: 2,
+        trestbps: 112,
+        chol: 178,
+        fbs: 0,
+        restecg: 0,
+        thalach: 174,
+        exang: 0,
+        oldpeak: 0.1,
+        slope: 0,
+        ca: 0,
+        thal: 1
+      },
+      med: {
+        age: 52,
+        sex: 1,
+        cp: 1,
+        trestbps: 135,
+        chol: 242,
+        fbs: 0,
+        restecg: 1,
+        thalach: 142,
+        exang: 0,
+        oldpeak: 1.2,
+        slope: 1,
+        ca: 1,
+        thal: 2
+      },
+      high: {
+        age: 66,
+        sex: 1,
+        cp: 3,
+        trestbps: 168,
+        chol: 295,
+        fbs: 1,
+        restecg: 2,
+        thalach: 108,
+        exang: 1,
+        oldpeak: 2.8,
+        slope: 2,
+        ca: 3,
+        thal: 3
+      }
+    };
+
+    window.loadClinicalPreset = function(type) {
+      document.querySelectorAll('.inf-preset-btn').forEach(b => b.classList.remove('active'));
+      if (type === 'low') document.getElementById('presetLow').classList.add('active');
+      if (type === 'med') document.getElementById('presetMed').classList.add('active');
+      if (type === 'high') document.getElementById('presetHigh').classList.add('active');
+
+      const p = clinicalPresets[type];
+      document.getElementById('sliderAge').value = p.age;
+      document.getElementById('sliderBps').value = p.trestbps;
+      document.getElementById('sliderChol').value = p.chol;
+      document.getElementById('sliderThalach').value = p.thalach;
+      document.getElementById('sliderOldpeak').value = p.oldpeak;
+      document.getElementById('selCp').value = p.cp;
+      document.getElementById('selRestecg').value = p.restecg;
+      document.getElementById('selSlope').value = p.slope;
+      document.getElementById('selCa').value = p.ca;
+      document.getElementById('selThal').value = p.thal;
+      
+      setSex(p.sex, false);
+      setFbs(p.fbs, false);
+      setExang(p.exang, false);
+
+      runLiveInference();
+    };
+
+    window.setSex = function(val, triggerInference = true) {
+      currentSex = val;
+      const b1 = document.getElementById('btnSex1');
+      const b0 = document.getElementById('btnSex0');
+      const lbl = document.getElementById('lblSex');
+      if (b1) b1.classList.toggle('active', val === 1);
+      if (b0) b0.classList.toggle('active', val === 0);
+      if (lbl) lbl.textContent = val === 1 ? 'Hombre (1)' : 'Mujer (0)';
+      if (triggerInference) runLiveInference();
+    };
+
+    window.setFbs = function(val, triggerInference = true) {
+      currentFbs = val;
+      const b0 = document.getElementById('btnFbs0');
+      const b1 = document.getElementById('btnFbs1');
+      const lbl = document.getElementById('lblFbs');
+      if (b0) b0.classList.toggle('active', val === 0);
+      if (b1) b1.classList.toggle('active', val === 1);
+      if (lbl) lbl.textContent = val === 1 ? 'Sí (> 120 · 1)' : 'No (≤ 120 · 0)';
+      if (triggerInference) runLiveInference();
+    };
+
+    window.setExang = function(val, triggerInference = true) {
+      currentExang = val;
+      const b0 = document.getElementById('btnExang0');
+      const b1 = document.getElementById('btnExang1');
+      const lbl = document.getElementById('lblExang');
+      if (b0) b0.classList.toggle('active', val === 0);
+      if (b1) b1.classList.toggle('active', val === 1);
+      if (lbl) lbl.textContent = val === 1 ? 'Sí (1)' : 'No (0)';
+      if (triggerInference) runLiveInference();
+    };
+
+    window.runLiveInference = function() {
+      const age = parseFloat(document.getElementById('sliderAge').value);
+      const sex = currentSex;
+      const cp = parseInt(document.getElementById('selCp').value, 10);
+      const trestbps = parseFloat(document.getElementById('sliderBps').value);
+      const chol = parseFloat(document.getElementById('sliderChol').value);
+      const fbs = currentFbs;
+      const restecg = parseInt(document.getElementById('selRestecg').value, 10);
+      const thalach = parseFloat(document.getElementById('sliderThalach').value);
+      const exang = currentExang;
+      const oldpeak = parseFloat(document.getElementById('sliderOldpeak').value);
+      const slope = parseInt(document.getElementById('selSlope').value, 10);
+      const ca = parseInt(document.getElementById('selCa').value, 10);
+      const thal = parseInt(document.getElementById('selThal').value, 10);
+
+      // Update badge labels
+      document.getElementById('lblAge').textContent = `${age} años`;
+      document.getElementById('lblBps').textContent = `${trestbps} mmHg`;
+      document.getElementById('lblChol').textContent = `${chol} mg/dl`;
+      document.getElementById('lblThalach').textContent = `${thalach} bpm`;
+      document.getElementById('lblOldpeak').textContent = `${oldpeak.toFixed(1)} mm`;
+
+      // Feature Engineering matching build_feature_row() in app.py & train.py
+      const bpCholRatio = trestbps / Math.max(chol, 1);
+      const maxHrExpected = 220 - age;
+      const hrReserveDeficit = maxHrExpected - thalach;
+      let ageGroup = 'under_40';
+      if (age >= 60) ageGroup = '60_plus';
+      else if (age >= 50) ageGroup = '50_59';
+      else if (age >= 40) ageGroup = '40_49';
+
+      document.getElementById('lblRatio').textContent = bpCholRatio.toFixed(2);
+      document.getElementById('lblHrExp').textContent = `${maxHrExpected} bpm`;
+      document.getElementById('lblDeficit').textContent = `${hrReserveDeficit >= 0 ? '+' : ''}${hrReserveDeficit} bpm`;
+      document.getElementById('lblAgeGroup').textContent = ageGroup;
+
+      // Standardized logistic regression approximation calibrated to UCI Cleveland model
+      const zAge = (age - 54.4) / 9.0;
+      const zBps = (trestbps - 131.6) / 17.5;
+      const zChol = (chol - 246.3) / 51.8;
+      const zThalach = (thalach - 149.6) / 22.9;
+      const zOldpeak = (oldpeak - 1.04) / 1.16;
+      const zDeficit = (hrReserveDeficit - 15.9) / 22.6;
+
+      const sexWeight = sex === 1 ? 0.42 : -0.38;
+      const cpWeights = { 0: -0.25, 1: 0.28, 2: 0.18, 3: 0.78 };
+      const cpWeight = cpWeights[cp] !== undefined ? cpWeights[cp] : 0;
+      const fbsWeight = fbs === 1 ? 0.22 : -0.05;
+      const restecgWeights = { 0: -0.15, 1: 0.28, 2: 0.58 };
+      const restecgWeight = restecgWeights[restecg] !== undefined ? restecgWeights[restecg] : 0;
+      const exangWeight = exang === 1 ? 0.68 : -0.25;
+      const slopeWeights = { 0: -0.38, 1: 0.26, 2: 0.65 };
+      const slopeWeight = slopeWeights[slope] !== undefined ? slopeWeights[slope] : 0;
+      const caWeights = { 0: -0.55, 1: 0.35, 2: 0.78, 3: 1.18, 4: 1.35 };
+      const caWeight = caWeights[ca] !== undefined ? caWeights[ca] : 0;
+      const thalWeights = { 1: -0.45, 2: 0.35, 3: 0.88 };
+      const thalWeight = thalWeights[thal] !== undefined ? thalWeights[thal] : 0;
+      const ageGroupWeights = { 'under_40': -0.32, '40_49': -0.10, '50_59': 0.16, '60_plus': 0.38 };
+      const ageGroupWeight = ageGroupWeights[ageGroup] || 0;
+
+      const z = -0.32
+        + 0.24 * zAge
+        + 0.28 * zBps
+        + 0.22 * zChol
+        - 0.52 * zThalach
+        + 0.56 * zOldpeak
+        + 0.20 * zDeficit
+        + sexWeight
+        + cpWeight
+        + fbsWeight
+        + restecgWeight
+        + exangWeight
+        + slopeWeight
+        + caWeight
+        + thalWeight
+        + ageGroupWeight;
+
+      const prob = 1 / (1 + Math.exp(-z));
+      const pct = Math.min(Math.max(prob * 100, 2.5), 98.5);
+
+      const scoreEl = document.getElementById('infScorePct');
+      const meterEl = document.getElementById('infMeterFill');
+      const panelEl = document.getElementById('infResultPanel');
+      const catIcon = document.getElementById('infCatIcon');
+      const catTitle = document.getElementById('infCatTitle');
+      const recEl = document.getElementById('infRecommendation');
+
+      scoreEl.textContent = `${pct.toFixed(1)}%`;
+      meterEl.style.width = `${pct}%`;
+
+      if (pct < 30) {
+        panelEl.style.borderLeftColor = '#10b981';
+        meterEl.style.background = '#10b981';
+        meterEl.style.boxShadow = '0 0 10px rgba(16, 185, 129, 0.6)';
+        scoreEl.style.color = '#34d399';
+        catIcon.textContent = '🟢';
+        catTitle.textContent = 'RIESGO BAJO (<30%)';
+        catTitle.style.color = '#34d399';
+        recEl.textContent = 'Perfil clínico favorable. Se recomienda control rutinario anual, estilo de vida saludable y actividad aeróbica regular.';
+      } else if (pct <= 60) {
+        panelEl.style.borderLeftColor = '#f59e0b';
+        meterEl.style.background = '#f59e0b';
+        meterEl.style.boxShadow = '0 0 10px rgba(245, 158, 11, 0.6)';
+        scoreEl.style.color = '#fbbf24';
+        catIcon.textContent = '🟡';
+        catTitle.textContent = 'RIESGO MODERADO (30-60%)';
+        catTitle.style.color = '#fbbf24';
+        recEl.textContent = 'Factores de riesgo combinados en desarrollo. Se recomienda control estricto de presión/lípidos y prueba de esfuerzo no invasiva.';
+      } else {
+        panelEl.style.borderLeftColor = '#ef4444';
+        meterEl.style.background = '#ef4444';
+        meterEl.style.boxShadow = '0 0 10px rgba(239, 68, 68, 0.6)';
+        scoreEl.style.color = '#f87171';
+        catIcon.textContent = '🔴';
+        catTitle.textContent = 'ALTO RIESGO (>60%)';
+        catTitle.style.color = '#f87171';
+        recEl.textContent = 'Probabilidad clínica elevada. Se sugiere derivación prioritaria a cardiología para estudios angiográficos y prevención intensiva.';
+      }
+    };
+
+
+    // ==========================================
+    // 2. PROMOTION RULE SIMULATOR (SLIDE 5)
+    // ==========================================
+    const CHAMPION_ROC = 0.8900;
+    const TOLERANCE = 0.0010;
+    const THRESHOLD = CHAMPION_ROC + TOLERANCE; // 0.8910
+
+    window.setChallengerValue = function(val) {
+      document.getElementById('sliderChallenger').value = val;
+      updateChallengerFromSlider(val);
+    };
+
+    window.updateChallengerFromSlider = function(valStr) {
+      const challenger = parseFloat(valStr);
+      document.getElementById('lblChallengerVal').textContent = challenger.toFixed(4);
+      document.getElementById('barChallengerVal').textContent = challenger.toFixed(4);
+
+      // Percentage for bar width (0.7000 -> 0%, 1.0000 -> 100%)
+      const barPct = ((challenger - 0.70) / (1.00 - 0.70)) * 100;
+      const barEl = document.getElementById('barChallengerFill');
+      barEl.style.width = `${Math.min(Math.max(barPct, 5), 100)}%`;
+
+      const diff = challenger - CHAMPION_ROC;
+      const diffStr = diff >= 0 ? `+${diff.toFixed(4)}` : `${diff.toFixed(4)}`;
+
+      const panel = document.getElementById('maintDecisionPanel');
+      const title = document.getElementById('maintDecisionTitle');
+      const desc = document.getElementById('maintDecisionDesc');
+      const actions = document.getElementById('maintActionsRow');
+
+      // Update preset buttons state
+      document.querySelectorAll('.maint-preset-btn').forEach(btn => btn.classList.remove('active'));
+      if (Math.abs(challenger - 0.9200) < 0.0001) document.getElementById('btnCase1').classList.add('active');
+      else if (Math.abs(challenger - 0.8500) < 0.0001) document.getElementById('btnCase2').classList.add('active');
+      else if (Math.abs(challenger - 0.8900) < 0.0001) document.getElementById('btnCase3').classList.add('active');
+      else if (Math.abs(challenger - 0.8905) < 0.0001) document.getElementById('btnCase4').classList.add('active');
+      else if (Math.abs(challenger - 0.8915) < 0.0001) document.getElementById('btnCase5').classList.add('active');
+      else if (Math.abs(challenger - 0.9500) < 0.0001) document.getElementById('btnCase6').classList.add('active');
+
+      if (challenger > THRESHOLD) {
+        // PROMOTION APPROVED
+        panel.style.borderLeftColor = '#10b981';
+        barEl.style.background = '#10b981';
+        title.style.color = '#34d399';
+        title.innerHTML = `<span>🟢</span> <span>DECISIÓN: PROMOCIÓN AUTORIZADA (Exit Code 0)</span>`;
+        desc.innerHTML = `Diferencial: <strong style="color:#34d399;">${diffStr}</strong> · Supera holgadamente la cota mínima exigida (+0.0010).`;
+        actions.innerHTML = `
+          <span class="badge-pill success">Incrementa a v4</span>
+          <span class="badge-pill success">Sobrescribe cardio_risk_model.joblib</span>
+          <span class="badge-pill success">Commit [skip ci]</span>
+          <span class="badge-pill success">Dispara SSH Deploy a Ubuntu</span>
+        `;
+      } else if (challenger <= CHAMPION_ROC) {
+        // REJECTED / ROLLBACK
+        panel.style.borderLeftColor = '#ef4444';
+        barEl.style.background = '#ef4444';
+        title.style.color = '#f87171';
+        title.innerHTML = `<span>🔴</span> <span>DECISIÓN: CANDIDATO RECHAZADO / ROLLBACK SEGURO (Exit Code 0)</span>`;
+        desc.innerHTML = `Diferencial: <strong style="color:#f87171;">${diffStr}</strong> · Modelo inferior o igual al Champion actual (0.8900).`;
+        actions.innerHTML = `
+          <span class="badge-pill warn" style="background:rgba(239,68,68,0.2); color:#f87171;">Preserva Champion v3 intacto</span>
+          <span class="badge-pill info">Cero cambios en git (changed=false)</span>
+          <span class="badge-pill info">Cancela SSH Deploy</span>
+          <span class="badge-pill success">Cero regresión en producción</span>
+        `;
+      } else {
+        // WITHIN TOLERANCE / NO-OP
+        panel.style.borderLeftColor = '#f59e0b';
+        barEl.style.background = '#f59e0b';
+        title.style.color = '#fbbf24';
+        title.innerHTML = `<span>🟡</span> <span>DECISIÓN: DENTRO DE TOLERANCIA / NO-OP (Exit Code 0)</span>`;
+        desc.innerHTML = `Diferencial: <strong style="color:#fbbf24;">${diffStr}</strong> · Mejora inferior al margen de 0.0010 (considerada ruido numérico).`;
+        actions.innerHTML = `
+          <span class="badge-pill warn">No justifica despliegue</span>
+          <span class="badge-pill info">Preserva Champion actual</span>
+          <span class="badge-pill info">Evita churn operacional</span>
+        `;
+      }
+    };
+
+    // Initialize simulators and presentation
+    updatePresentation();
+    loadClinicalPreset('med');
+    updateChallengerFromSlider(0.9200);
+  </script>
+</body>
+</html>
