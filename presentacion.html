@@ -1703,30 +1703,30 @@
               Presets Clínicos Rápidos (Carga de las 13 Variables):
             </div>
             <div class="inf-presets">
-              <button type="button" class="inf-preset-btn" id="presetLow" onclick="loadClinicalPreset('low')">🟢 Sano (Bajo)</button>
-              <button type="button" class="inf-preset-btn active" id="presetMed" onclick="loadClinicalPreset('med')">🟡 Moderado</button>
-              <button type="button" class="inf-preset-btn" id="presetHigh" onclick="loadClinicalPreset('high')">🔴 Crítico (Alto)</button>
+              <button type="button" class="inf-preset-btn active" id="presetDefault" onclick="loadClinicalPreset('default')">📋 Default app.py (45.4%)</button>
+              <button type="button" class="inf-preset-btn" id="presetHigh" onclick="loadClinicalPreset('high')">🔴 High Risk (81.2%)</button>
+              <button type="button" class="inf-preset-btn" id="presetLow" onclick="loadClinicalPreset('low')">🟢 Low Risk (10.1%)</button>
             </div>
           </div>
 
           <!-- Panel de Resultados Dinámico -->
-          <div class="inf-result-panel" id="infResultPanel" style="border-left-color: #f59e0b;">
+          <div class="inf-result-panel" id="infResultPanel" style="border-left-color: #10b981;">
             <div class="inf-result-header">
               <div>
-                <div class="inf-score-title">Probabilidad Estimada de Cardiopatía (app.py)</div>
+                <div class="inf-score-title">Probabilidad Estimada (cardio_risk_model.joblib)</div>
                 <div class="inf-category-text" id="infCategoryText">
-                  <span id="infCatIcon">🟡</span> <span id="infCatTitle" style="color: #fbbf24;">RIESGO MODERADO</span>
+                  <span id="infCatIcon">🟢</span> <span id="infCatTitle" style="color: #34d399;">LOW RISK (Probabilidad &lt; 50%)</span>
                 </div>
               </div>
-              <div class="inf-score-pct" id="infScorePct" style="color: #fbbf24;">48.2%</div>
+              <div class="inf-score-pct" id="infScorePct" style="color: #34d399;">45.4%</div>
             </div>
 
             <div class="inf-meter-bg">
-              <div class="inf-meter-fill" id="infMeterFill" style="width: 48.2%; background: #f59e0b; box-shadow: 0 0 10px rgba(245, 158, 11, 0.6);"></div>
+              <div class="inf-meter-fill" id="infMeterFill" style="width: 45.4%; background: #10b981; box-shadow: 0 0 10px rgba(16, 185, 129, 0.6);"></div>
             </div>
 
             <div class="inf-recommendation" id="infRecommendation">
-              Factores de riesgo combinados en desarrollo. Se recomienda control estricto de presión/lípidos y prueba de esfuerzo no invasiva.
+              <strong>Clasificación oficial app.py:</strong> <code>prediction = 0 (Low risk)</code>. La probabilidad estimada (45.4%) se ubica por debajo del umbral de decisión 0.50.
             </div>
           </div>
 
@@ -2865,56 +2865,126 @@
       }
     });
 
-    // ==========================================
-    // 1. CLINICAL INFERENCE SIMULATOR (SLIDE 2) - 13 VARIABLES
-    // ==========================================
+    // =========================================================================
+    // 1. MOTOR DE INFERENCIA CLÍNICA 100% IDÉNTICO A cardio_risk_model.joblib
+    // =========================================================================
     let currentSex = 1;
     let currentFbs = 0;
     let currentExang = 0;
 
+    // Coeficientes exactos del pipeline scikit-learn (StandardScaler + OneHotEncoder + LogisticRegression C=0.1)
+    const MODEL_MEANS = [
+      54.3402489626556,   // 0: age
+      131.448132780083,   // 1: trestbps
+      244.298755186722,   // 2: chol
+      150.07053941908714, // 3: thalach
+      1.0709543568464732, // 4: oldpeak
+      0.556541593154894,  // 5: bp_chol_ratio
+      165.6597510373444,  // 6: max_hr_expected
+      15.589211618257261  // 7: hr_reserve_deficit
+    ];
+
+    const MODEL_SCALES = [
+      9.201321298105162,
+      17.951016991700257,
+      48.00624482313634,
+      22.04143597202839,
+      1.2037573963577533,
+      0.12438642931113351,
+      9.201321298105162,
+      20.144944893760446
+    ];
+
+    const W_NUM = [
+      -0.03788483668082027,  // age
+      -0.18786021813802387,  // trestbps
+      -0.24552169831267906,  // chol
+      0.17416404452564024,   // thalach
+      -0.4195495098527252,   // oldpeak
+      0.07621567976841477,   // bp_chol_ratio
+      0.03788483668082023,   // max_hr_expected
+      -0.17325612454248912   // hr_reserve_deficit
+    ];
+
+    const W_INTERCEPT = 0.05933823444523356;
+
+    const W_CP = {
+      0: -0.6677196246032678,
+      1: 0.09207247518679909,
+      2: 0.3718383138653103,
+      3: 0.20386673734856467
+    };
+
+    const W_RESTECG = {
+      0: -0.1384326910087706,
+      1: 0.1565073410209706,
+      2: -0.018016748214794202
+    };
+
+    const W_SLOPE = {
+      0: 0.01737165917877221,
+      1: -0.21499290622390368,
+      2: 0.19767914884253743
+    };
+
+    const W_CA = {
+      0: 0.542143467998236,
+      1: -0.2534344292782511,
+      2: -0.25640242550803277,
+      3: -0.08727497221329045,
+      4: 0.055026260798744016
+    };
+
+    const W_THAL = {
+      0: 0.015187375618086984,
+      1: -0.07822484871819006,
+      2: 0.5745475085739076,
+      3: -0.5114521336763985
+    };
+
     const clinicalPresets = {
-      low: {
-        age: 36,
-        sex: 0,
-        cp: 2,
-        trestbps: 112,
-        chol: 178,
+      default: {
+        age: 50,
+        sex: 1,
+        cp: 0,
+        trestbps: 130,
+        chol: 240,
         fbs: 0,
         restecg: 0,
-        thalach: 174,
+        thalach: 150,
         exang: 0,
-        oldpeak: 0.1,
+        oldpeak: 1.0,
         slope: 0,
         ca: 0,
         thal: 1
       },
-      med: {
-        age: 52,
+      high: {
+        age: 55,
         sex: 1,
-        cp: 1,
-        trestbps: 135,
-        chol: 242,
+        cp: 2,
+        trestbps: 130,
+        chol: 246,
         fbs: 0,
         restecg: 1,
-        thalach: 142,
+        thalach: 150,
         exang: 0,
         oldpeak: 1.2,
         slope: 1,
-        ca: 1,
+        ca: 0,
         thal: 2
       },
-      high: {
-        age: 66,
-        sex: 1,
-        cp: 3,
-        trestbps: 168,
-        chol: 295,
-        fbs: 1,
-        restecg: 2,
-        thalach: 108,
-        exang: 1,
-        oldpeak: 2.8,
-        slope: 2,
+      low: {
+        age: 62,
+        sex: 0,
+        cp: 0,
+        trestbps: 160,
+        chol: 164,
+        fbs: 0,
+        restecg: 0,
+        thalach: 145,
+        exang: 0,
+        oldpeak: 6.2,
+        slope: 0,
         ca: 3,
         thal: 3
       }
@@ -2922,11 +2992,18 @@
 
     window.loadClinicalPreset = function(type) {
       document.querySelectorAll('.inf-preset-btn').forEach(b => b.classList.remove('active'));
-      if (type === 'low') document.getElementById('presetLow').classList.add('active');
-      if (type === 'med') document.getElementById('presetMed').classList.add('active');
-      if (type === 'high') document.getElementById('presetHigh').classList.add('active');
+      if (type === 'default') {
+        const btn = document.getElementById('presetDefault');
+        if (btn) btn.classList.add('active');
+      } else if (type === 'high') {
+        const btn = document.getElementById('presetHigh');
+        if (btn) btn.classList.add('active');
+      } else if (type === 'low') {
+        const btn = document.getElementById('presetLow');
+        if (btn) btn.classList.add('active');
+      }
 
-      const p = clinicalPresets[type];
+      const p = clinicalPresets[type] || clinicalPresets['default'];
       document.getElementById('sliderAge').value = p.age;
       document.getElementById('sliderBps').value = p.trestbps;
       document.getElementById('sliderChol').value = p.chol;
@@ -3000,7 +3077,7 @@
       document.getElementById('lblThalach').textContent = `${thalach} bpm`;
       document.getElementById('lblOldpeak').textContent = `${oldpeak.toFixed(1)} mm`;
 
-      // Feature Engineering matching build_feature_row() in app.py & train.py
+      // Feature Engineering exacto de build_feature_row() en app.py & train.py
       const bpCholRatio = trestbps / Math.max(chol, 1);
       const maxHrExpected = 220 - age;
       const hrReserveDeficit = maxHrExpected - thalach;
@@ -3014,49 +3091,31 @@
       document.getElementById('lblDeficit').textContent = `${hrReserveDeficit >= 0 ? '+' : ''}${hrReserveDeficit} bpm`;
       document.getElementById('lblAgeGroup').textContent = ageGroup;
 
-      // Standardized logistic regression approximation calibrated to UCI Cleveland model
-      const zAge = (age - 54.4) / 9.0;
-      const zBps = (trestbps - 131.6) / 17.5;
-      const zChol = (chol - 246.3) / 51.8;
-      const zThalach = (thalach - 149.6) / 22.9;
-      const zOldpeak = (oldpeak - 1.04) / 1.16;
-      const zDeficit = (hrReserveDeficit - 15.9) / 22.6;
+      // Cálculo del vector numérico estandarizado (StandardScaler exacto)
+      const numVals = [age, trestbps, chol, thalach, oldpeak, bpCholRatio, maxHrExpected, hrReserveDeficit];
+      let z = W_INTERCEPT;
+      for (let i = 0; i < 8; i++) {
+        z += W_NUM[i] * ((numVals[i] - MODEL_MEANS[i]) / MODEL_SCALES[i]);
+      }
 
-      const sexWeight = sex === 1 ? 0.42 : -0.38;
-      const cpWeights = { 0: -0.25, 1: 0.28, 2: 0.18, 3: 0.78 };
-      const cpWeight = cpWeights[cp] !== undefined ? cpWeights[cp] : 0;
-      const fbsWeight = fbs === 1 ? 0.22 : -0.05;
-      const restecgWeights = { 0: -0.15, 1: 0.28, 2: 0.58 };
-      const restecgWeight = restecgWeights[restecg] !== undefined ? restecgWeights[restecg] : 0;
-      const exangWeight = exang === 1 ? 0.68 : -0.25;
-      const slopeWeights = { 0: -0.38, 1: 0.26, 2: 0.65 };
-      const slopeWeight = slopeWeights[slope] !== undefined ? slopeWeights[slope] : 0;
-      const caWeights = { 0: -0.55, 1: 0.35, 2: 0.78, 3: 1.18, 4: 1.35 };
-      const caWeight = caWeights[ca] !== undefined ? caWeights[ca] : 0;
-      const thalWeights = { 1: -0.45, 2: 0.35, 3: 0.88 };
-      const thalWeight = thalWeights[thal] !== undefined ? thalWeights[thal] : 0;
-      const ageGroupWeights = { 'under_40': -0.32, '40_49': -0.10, '50_59': 0.16, '60_plus': 0.38 };
-      const ageGroupWeight = ageGroupWeights[ageGroup] || 0;
+      // One-Hot Encoding y pesos de LogisticRegression (C=0.1) idénticos al joblib
+      z += sex === 0 ? 0.3186227181733935 : -0.3185648163759875;
+      z += W_CP[cp] !== undefined ? W_CP[cp] : 0;
+      z += fbs === 0 ? 0.005597287019582868 : -0.005539385222176908;
+      z += W_RESTECG[restecg] !== undefined ? W_RESTECG[restecg] : 0;
+      z += exang === 0 ? 0.2955030522002556 : -0.29544515040284985;
+      z += W_SLOPE[slope] !== undefined ? W_SLOPE[slope] : 0;
+      z += W_CA[ca] !== undefined ? W_CA[ca] : 0;
+      z += W_THAL[thal] !== undefined ? W_THAL[thal] : 0;
 
-      const z = -0.32
-        + 0.24 * zAge
-        + 0.28 * zBps
-        + 0.22 * zChol
-        - 0.52 * zThalach
-        + 0.56 * zOldpeak
-        + 0.20 * zDeficit
-        + sexWeight
-        + cpWeight
-        + fbsWeight
-        + restecgWeight
-        + exangWeight
-        + slopeWeight
-        + caWeight
-        + thalWeight
-        + ageGroupWeight;
+      if (ageGroup === 'under_40') z += -0.06432189611722051;
+      else if (ageGroup === '40_49') z += -0.0026352972672543202;
+      else if (ageGroup === '50_59') z += 0.0471390286728632;
+      else if (ageGroup === '60_plus') z += 0.019876066509017312;
 
+      // Sigmoide predict_proba(X)[0, 1]
       const prob = 1 / (1 + Math.exp(-z));
-      const pct = Math.min(Math.max(prob * 100, 2.5), 98.5);
+      const pct = prob * 100;
 
       const scoreEl = document.getElementById('infScorePct');
       const meterEl = document.getElementById('infMeterFill');
@@ -3066,35 +3125,27 @@
       const recEl = document.getElementById('infRecommendation');
 
       scoreEl.textContent = `${pct.toFixed(1)}%`;
-      meterEl.style.width = `${pct}%`;
+      meterEl.style.width = `${Math.min(Math.max(pct, 2), 100)}%`;
 
-      if (pct < 30) {
-        panelEl.style.borderLeftColor = '#10b981';
-        meterEl.style.background = '#10b981';
-        meterEl.style.boxShadow = '0 0 10px rgba(16, 185, 129, 0.6)';
-        scoreEl.style.color = '#34d399';
-        catIcon.textContent = '🟢';
-        catTitle.textContent = 'RIESGO BAJO (<30%)';
-        catTitle.style.color = '#34d399';
-        recEl.textContent = 'Perfil clínico favorable. Se recomienda control rutinario anual, estilo de vida saludable y actividad aeróbica regular.';
-      } else if (pct <= 60) {
-        panelEl.style.borderLeftColor = '#f59e0b';
-        meterEl.style.background = '#f59e0b';
-        meterEl.style.boxShadow = '0 0 10px rgba(245, 158, 11, 0.6)';
-        scoreEl.style.color = '#fbbf24';
-        catIcon.textContent = '🟡';
-        catTitle.textContent = 'RIESGO MODERADO (30-60%)';
-        catTitle.style.color = '#fbbf24';
-        recEl.textContent = 'Factores de riesgo combinados en desarrollo. Se recomienda control estricto de presión/lípidos y prueba de esfuerzo no invasiva.';
-      } else {
+      // Regla de decisión de app.py: prediction = int(probability >= 0.5)
+      if (pct >= 50.0) {
         panelEl.style.borderLeftColor = '#ef4444';
         meterEl.style.background = '#ef4444';
         meterEl.style.boxShadow = '0 0 10px rgba(239, 68, 68, 0.6)';
         scoreEl.style.color = '#f87171';
         catIcon.textContent = '🔴';
-        catTitle.textContent = 'ALTO RIESGO (>60%)';
+        catTitle.textContent = 'HIGH RISK (Probabilidad ≥ 50%)';
         catTitle.style.color = '#f87171';
-        recEl.textContent = 'Probabilidad clínica elevada. Se sugiere derivación prioritaria a cardiología para estudios angiográficos y prevención intensiva.';
+        recEl.innerHTML = `<strong>Clasificación oficial app.py:</strong> <code>prediction = 1 (High risk)</code>. La probabilidad estimada (${pct.toFixed(1)}%) supera el umbral de decisión 0.50.`;
+      } else {
+        panelEl.style.borderLeftColor = '#10b981';
+        meterEl.style.background = '#10b981';
+        meterEl.style.boxShadow = '0 0 10px rgba(16, 185, 129, 0.6)';
+        scoreEl.style.color = '#34d399';
+        catIcon.textContent = '🟢';
+        catTitle.textContent = 'LOW RISK (Probabilidad < 50%)';
+        catTitle.style.color = '#34d399';
+        recEl.innerHTML = `<strong>Clasificación oficial app.py:</strong> <code>prediction = 0 (Low risk)</code>. La probabilidad estimada (${pct.toFixed(1)}%) se ubica por debajo del umbral de decisión 0.50.`;
       }
     };
 
@@ -3181,7 +3232,7 @@
 
     // Initialize simulators and presentation
     updatePresentation();
-    loadClinicalPreset('med');
+    loadClinicalPreset('default');
     updateChallengerFromSlider(0.9200);
   </script>
 </body>
