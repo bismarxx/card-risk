@@ -72,23 +72,27 @@ jobs:
           git commit -m "chore(maintenance): retrain and promote new champion model [skip ci]"
           git push
 
-      # Redespliegue automático: dispara el deploy hook de Render solo si el
-      # pipeline efectivamente promovió un nuevo modelo. Requiere configurar
-      # el secreto RENDER_DEPLOY_HOOK_URL en el repositorio.
-      - name: Trigger redeploy on Render
+      # Redespliegue automático vía SSH: solo se ejecuta si el pipeline
+      # efectivamente promovió un nuevo modelo. Reutiliza los mismos secrets
+      # que el job deploy de ci.yml (SERVER_HOST, SERVER_USER, SSH_PRIVATE_KEY, SERVER_PORT).
+      - name: Deploy promoted model via SSH
         if: ${{ inputs.dry_run != true && steps.changes.outputs.changed == 'true' }}
-        env:
-          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
-        run: |
-          if [ -n "$RENDER_DEPLOY_HOOK_URL" ]; then
-            curl -fsSL -X POST "$RENDER_DEPLOY_HOOK_URL"
-            echo "Redeploy hook triggered."
-          else
-            echo "::error::El modelo fue promovido y commiteado, pero RENDER_DEPLOY_HOOK_URL"\
-                 " no está configurado — el servidor NO fue redesplegado."
-            echo "::error::Configura el secret en Settings → Secrets → Actions → RENDER_DEPLOY_HOOK_URL."
-            exit 1
-          fi
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          script: |
+            cd /root/projects/card-risk
+
+            git fetch origin main
+            git reset --hard origin/main
+
+            docker compose down
+            docker compose up -d --build
+
+            docker image prune -f
 
       - name: Upload registry as workflow artifact (audit trail)
         uses: actions/upload-artifact@v4
