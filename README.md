@@ -68,6 +68,23 @@ Every Sunday at 03:00 UTC, the maintenance pipeline:
 
 ---
 
+## Tools & Platforms
+
+| Category | Tool |
+|---|---|
+| Language | Python 3.11 |
+| Web UI | Streamlit |
+| ML | scikit-learn · joblib |
+| Containerization | Docker · Docker Compose |
+| CI/CD | GitHub Actions |
+| Production server | Ubuntu (SSH deploy via `appleboy/ssh-action`) |
+| Testing | pytest · `streamlit.testing.v1.AppTest` · PyYAML |
+| Model registry | Custom JSON registry (`model/registry.json`) |
+
+→ [Full stack & architecture details](docs/ARCHITECTURE.md)
+
+---
+
 ## Documentation
 
 | Document | Description |
