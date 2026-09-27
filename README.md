@@ -1,74 +1,103 @@
 # Cardiovascular Risk Predictor
 
-Proyecto del curso *Aprendizaje de Máquina I* — Maestría en Ciencia de Datos, UNA Puno.
-Aplicación con un componente de predicción (riesgo cardiovascular) desplegada en producción, con procesos de **mantenimiento** e **integración continua** automatizados.
+> A machine learning web application that estimates cardiovascular disease risk from clinical data.  
+> Built with Python · scikit-learn · Streamlit · Docker · GitHub Actions.
 
-## Mapeo con las indicaciones del curso
+![CI](https://github.com/<owner>/card-risk/actions/workflows/ci.yml/badge.svg)
+![Maintenance](https://github.com/<owner>/card-risk/actions/workflows/maintenance.yml/badge.svg)
 
-### Unidad I — Entrega de avance / parcial
-| Requisito | Dónde está |
+---
+
+## What it does
+
+Enter a patient's 13 clinical measurements and get an estimated probability of cardiovascular disease, powered by a Logistic Regression pipeline trained on the [UCI Heart Disease dataset](https://archive.ics.uci.edu/dataset/45/heart+disease).
+
+**Current model performance (hold-out test set):**
+
+| Metric | Value |
 |---|---|
-| Funcionamiento de la aplicación en inglés | `app.py` |
-| Dataset, entrenamiento, features e hiperparámetros optimizados | `train.py`, `data/heart.csv`, `model/model_metadata.json` |
-| Despliegue / puesta en producción | `Dockerfile`, `.dockerignore`, guía de despliegue (Render / Hugging Face Spaces) |
-| Pruebas de funcionamiento (≥2) | `test_app.py` (11 pruebas) |
-| Informe detallado de entrenamiento y despliegue | `INFORME.md` |
+| ROC-AUC | **0.8972** |
+| Recall (sensitivity) | **0.9091** |
+| Accuracy | 0.8525 |
+| F1-score | 0.8696 |
 
-### Unidad II — Producto final
-| Requisito | Dónde está |
-|---|---|
-| Funcionamiento de la aplicación en inglés | `app.py` (sin cambios) |
-| Despliegue / puesta en producción | Igual que Unidad I |
-| Flujos de mantenimiento automatizados | `.github/workflows/maintenance.yml` + `retrain_pipeline.py` |
-| Flujos de integración continua automatizados | `.github/workflows/ci.yml` |
-| Pruebas de mantenimiento e integración continua (3 casos) | `test_maintenance_ci.py` |
-| Informe técnico para equipo de TI | `INFORME_TECNICO_MANTENIMIENTO_CI.md` |
+> This tool is for **educational purposes only** and is not a substitute for professional medical advice.
 
-## Estructura del repositorio
-
-```
-app.py                                  # App Streamlit (UI en inglés)
-train.py                                # Entrenamiento inicial
-retrain_pipeline.py                     # Pipeline de mantenimiento (reentrena + promueve)
-test_app.py                             # Pruebas funcionales (11)
-test_maintenance_ci.py                  # Pruebas de mantenimiento y CI (3 casos / 10 tests)
-requirements.txt / Dockerfile / .dockerignore
-.github/workflows/ci.yml                # CI: pytest + build de imagen
-.github/workflows/maintenance.yml       # Mantenimiento: reentrenamiento semanal
-data/heart.csv                          # Dataset (UCI Heart Disease)
-model/                                  # Modelo en producción + registro de versiones
-INFORME.md                              # Informe Unidad I
-INFORME_TECNICO_MANTENIMIENTO_CI.md     # Informe técnico Unidad II
-```
+---
 
 ## Quickstart
 
 ```bash
 pip install -r requirements.txt
-python train.py                         # entrena y guarda el modelo inicial
-streamlit run app.py                    # http://localhost:8501
-
-# Pruebas
-pytest test_app.py -v                   # funcionamiento de la app / modelo
-pytest test_maintenance_ci.py -v        # mantenimiento + CI (3 casos)
-
-# Pipeline de mantenimiento (manual / lo automatiza maintenance.yml)
-python retrain_pipeline.py --dry-run    # solo evalúa
-python retrain_pipeline.py              # reentrena y promueve si mejora
+python train.py                      # train and save the model
+streamlit run app.py                 # open http://localhost:8501
 ```
 
-## Despliegue
-
-Ver `INFORME.md` sección 10 para la guía paso a paso (Render y Hugging Face Spaces vía Docker).
-
-## CI/CD en un vistazo
-
-```
-push/PR a main ──► ci.yml ──► pytest (app + mantenimiento/CI) ──► docker build (validación)
-
-cron semanal ──► maintenance.yml ──► retrain_pipeline.py ──► ¿mejora el modelo?
-                                                                ├─ sí → commit + push + redeploy
-                                                                └─ no → se descarta, queda en el historial
+**Run tests:**
+```bash
+pytest test_app.py -v                # 11 tests — app & model
+pytest test_maintenance_ci.py -v     # 10 tests — maintenance & CI (3 cases)
 ```
 
-Detalle completo de ambos flujos, herramientas requeridas, organización del código y runbook operativo en `INFORME_TECNICO_MANTENIMIENTO_CI.md`.
+**Run the maintenance pipeline manually:**
+```bash
+python retrain_pipeline.py --dry-run   # evaluate only, nothing is written
+python retrain_pipeline.py             # full run — promotes if model improves
+```
+
+---
+
+## Automated Pipelines
+
+### Continuous Integration
+Every push and pull request to `main` automatically:
+1. Runs the full test suite (21 tests)
+2. Validates the Docker image builds cleanly
+3. Deploys to the production server via SSH (on push to `main` only)
+
+→ [CI/CD details](docs/CI_CD.md)
+
+### Scheduled Maintenance
+Every Sunday at 03:00 UTC, the maintenance pipeline:
+1. Downloads the latest dataset
+2. Retrains and evaluates 3 model candidates
+3. Promotes the new model **only if** it beats the current champion by more than 0.001 ROC-AUC
+4. Commits the new model artifact and redeploys — or discards it safely if there's no improvement
+
+→ [Maintenance pipeline details](docs/MAINTENANCE.md)
+
+---
+
+## Documentation
+
+| Document | Description |
+|---|---|
+| [Architecture & Code Structure](docs/ARCHITECTURE.md) | Repository layout, design principles, feature engineering |
+| [Deployment Guide](docs/DEPLOYMENT.md) | Server setup, GitHub secrets, first deploy, emergency redeploy |
+| [CI/CD Pipeline](docs/CI_CD.md) | Workflow diagrams, test suite breakdown, how to add a model |
+| [Maintenance Pipeline](docs/MAINTENANCE.md) | Retraining logic, model registry, promotion rules, runbook |
+| [Training Report](INFORME.md) | Dataset, hyperparameter tuning, evaluation (Spanish) |
+| [Technical Report — Unit II](INFORME_TECNICO_MANTENIMIENTO_CI.md) | Full technical report for the TI team (Spanish) |
+
+---
+
+## Project Structure
+
+```
+├── app.py                    # Streamlit web app
+├── train.py                  # Initial training script
+├── retrain_pipeline.py       # Automated maintenance pipeline
+├── test_app.py               # App & model tests (11)
+├── test_maintenance_ci.py    # Maintenance & CI tests (10)
+├── Dockerfile / docker-compose.yml
+├── .github/workflows/
+│   ├── ci.yml                # CI: test + build + deploy
+│   └── maintenance.yml       # Weekly retraining
+├── model/
+│   ├── cardio_risk_model.joblib   # Production model alias
+│   ├── registry.json              # Model version registry
+│   └── registry/                  # Versioned model artifacts
+└── docs/                     # Detailed documentation
+```
+
+→ [Full architecture details](docs/ARCHITECTURE.md)
