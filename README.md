@@ -93,8 +93,8 @@ Every Sunday at 03:00 UTC, the maintenance pipeline:
 | [Deployment Guide](docs/DEPLOYMENT.md) | Server setup, GitHub secrets, first deploy, emergency redeploy |
 | [CI/CD Pipeline](docs/CI_CD.md) | Workflow diagrams, test suite breakdown, how to add a model |
 | [Maintenance Pipeline](docs/MAINTENANCE.md) | Retraining logic, model registry, promotion rules, runbook |
-| [Training Report](INFORME.md) | Dataset, hyperparameter tuning, evaluation (Spanish) |
-| [Technical Report — Unit II](INFORME_TECNICO_MANTENIMIENTO_CI.md) | Full technical report for the TI team (Spanish) |
+| [Training Report](docs/TRAINING_REPORT.md) | Dataset, hyperparameter tuning, evaluation (Spanish) |
+| [Technical Report — Unit II](docs/TECHNICAL_REPORT.md) | Full technical report for the TI team (Spanish) |
 
 ---
 
