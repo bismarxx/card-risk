@@ -11,7 +11,7 @@
         "model__C": 0.1,
         "model__solver": "lbfgs"
       },
-      "seconds": 5.5
+      "seconds": 1.6
     },
     "random_forest": {
       "best_cv_roc_auc": 0.9062,
@@ -20,7 +20,7 @@
         "model__min_samples_leaf": 4,
         "model__n_estimators": 100
       },
-      "seconds": 10.7
+      "seconds": 17.5
     },
     "gradient_boosting": {
       "best_cv_roc_auc": 0.8905,
@@ -29,7 +29,7 @@
         "model__max_depth": 2,
         "model__n_estimators": 200
       },
-      "seconds": 3.8
+      "seconds": 6.7
     }
   },
   "test_metrics": {
@@ -61,8 +61,6 @@
     "age_group"
   ],
   "target": "target",
-  "n_train": 241,
-  "n_test": 61,
-  "random_state": 42,
-  "sklearn_version": "1.8.0"
+  "version": "v1",
+  "promoted_at": "2026-09-27T02:50:51.861246+00:00"
 }

@@ -1,0 +1,40 @@
+{
+  "champion": {
+    "version": "v1",
+    "model_name": "logistic_regression",
+    "metrics": {
+      "accuracy": 0.8525,
+      "precision": 0.8333,
+      "recall": 0.9091,
+      "f1_score": 0.8696,
+      "roc_auc": 0.8972
+    },
+    "best_params": {
+      "model__C": 0.1,
+      "model__solver": "lbfgs"
+    },
+    "trained_at": "2026-09-27T02:50:51.861246+00:00",
+    "promoted": true,
+    "artifact_path": "model/registry/model_v1.joblib"
+  },
+  "history": [
+    {
+      "version": "v1",
+      "model_name": "logistic_regression",
+      "metrics": {
+        "accuracy": 0.8525,
+        "precision": 0.8333,
+        "recall": 0.9091,
+        "f1_score": 0.8696,
+        "roc_auc": 0.8972
+      },
+      "best_params": {
+        "model__C": 0.1,
+        "model__solver": "lbfgs"
+      },
+      "trained_at": "2026-09-27T02:50:51.861246+00:00",
+      "promoted": true,
+      "artifact_path": "model/registry/model_v1.joblib"
+    }
+  ]
+}
