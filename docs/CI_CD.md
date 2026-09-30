@@ -8,6 +8,7 @@ Two independent automated workflows handle different concerns:
 |---|---|---|---|
 | **CI** | `ci.yml` | push / PR to `main` | Validate code changes before merging |
 | **Maintenance** | `maintenance.yml` | Weekly cron + manual | Keep the model fresh |
+| **Emergency Rollback** | `rollback.yml` | Manual only (`workflow_dispatch`) | Revert production to a known-good version |
 
 ---
 
@@ -69,6 +70,80 @@ The maintenance workflow redeploys using the **same SSH mechanism** as the CI de
 
 ---
 
+## Emergency Rollback Workflow (`rollback.yml`)
+
+### Overview
+
+A one-click escape hatch that reverts the production server to any known-good Git tag, version tag, or commit SHA — without requiring manual SSH terminal access.
+
+> **When to use it:** Bad data ingestion promoted a degraded model, the app is returning wrong predictions, or a deployment introduced a regression that tests didn't catch.
+
+### Trigger
+
+`workflow_dispatch` only — must be launched manually from **GitHub → Actions → Emergency Rollback → Run workflow**.
+
+### Inputs
+
+| Input | Required | Default | Description |
+|---|---|---|---|
+| `target_ref` | ✅ | `HEAD~1` | Git tag, version tag, or commit SHA to restore (e.g. `v1.1.0`, `a1b2c3d`) |
+| `reason` | ✅ | `Mala ingesta de datos detectada en producción` | Human-readable reason — recorded in the Actions log for audit |
+
+### Execution Flow
+
+```
+GitHub UI → Run workflow
+      │
+      ▼
+┌───────────────────────────────────────────────┐
+│ Step 1 — Audit Log                            │
+│  Prints actor, target_ref, and reason to log  │
+│  (permanently visible in GitHub Actions)      │
+└───────────────────────────────────────────────┘
+      │
+      ▼
+┌───────────────────────────────────────────────┐
+│ Step 2 — SSH into production server           │
+│  1. git fetch --all --tags                    │
+│  2. git checkout <target_ref>                 │
+│  3. docker compose down                       │
+│  4. docker compose up -d --build             │
+│  5. docker image prune -f                     │
+└───────────────────────────────────────────────┘
+      │
+      ▼
+✅ Production restored in < 90 seconds
+```
+
+### Secrets Required
+
+The same SSH secrets used by the CI deploy job:
+
+| Secret | Description |
+|---|---|
+| `SERVER_HOST` | IP or hostname of the production server |
+| `SERVER_USER` | SSH username (e.g. `root`) |
+| `SSH_PRIVATE_KEY` | Private key paired with the server's `authorized_keys` |
+| `SERVER_PORT` | SSH port (defaults to `22` if not set) |
+
+### Example: Rolling back to a specific version tag
+
+1. Go to **GitHub → Actions → Emergency Rollback → Run workflow**.
+2. Set `target_ref` to `v1.1.0` (or any tag from `git tag -l`).
+3. Set `reason` to a description (e.g. `"Corrupt batch from hospital sensor ingestion"`).
+4. Click **Run workflow** — production reverts in under 90 seconds.
+
+### What it restores
+
+Because Docker is rebuilt from the checked-out source (including `model/cardio_risk_model.joblib` at that commit), the rollback restores:
+- The exact model weights
+- The exact `app.py` and `requirements.txt`
+- The exact `Dockerfile` configuration
+
+> **Note:** This workflow does NOT update `model/registry.json` or `git push` anything back. After rollback, manually review and commit a corrected state to `main` to re-establish a clean history.
+
+---
+
 ## Why `[skip ci]` on model commits?
 
 When the maintenance pipeline promotes a new model, it commits the new `.joblib` to `main`. Without `[skip ci]`, this push would trigger the CI workflow, which would:
@@ -111,3 +186,18 @@ pytest test_app.py test_maintenance_ci.py -v
 1. Add an entry to `get_candidate_models()` in [`train.py`](../train.py).
 2. That's it — `retrain_pipeline.py` imports the function directly; the promotion logic is model-agnostic.
 3. Push to a branch, open a PR — CI will run the full test suite automatically.
+
+---
+
+## Workflow Summary
+
+```
+Code change (push / PR)
+  └─► ci.yml          → test → docker-build → deploy (main only)
+
+Every Sunday 03:00 UTC
+  └─► maintenance.yml → retrain → evaluate → promote? → [skip ci] push → redeploy
+
+Emergency (manual)
+  └─► rollback.yml    → git checkout <tag> → docker rebuild → production restored
+```

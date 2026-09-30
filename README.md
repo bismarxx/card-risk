@@ -5,6 +5,7 @@
 
 ![CI](https://github.com/<owner>/card-risk/actions/workflows/ci.yml/badge.svg)
 ![Maintenance](https://github.com/<owner>/card-risk/actions/workflows/maintenance.yml/badge.svg)
+![Rollback](https://github.com/<owner>/card-risk/actions/workflows/rollback.yml/badge.svg)
 
 ---
 
@@ -66,6 +67,15 @@ Every Sunday at 03:00 UTC, the maintenance pipeline:
 
 → [Maintenance pipeline details](docs/MAINTENANCE.md)
 
+### Emergency Rollback
+When a bad model reaches production (e.g. corrupted data ingestion), a one-click workflow reverts the server to any tagged version or commit SHA — no terminal access required.
+
+1. Go to **GitHub → Actions → Emergency Rollback → Run workflow**
+2. Enter the `target_ref` (e.g. `v1.1.0`) and an audit reason
+3. Production is restored in **< 90 seconds**
+
+→ [Rollback workflow details](docs/CI_CD.md#emergency-rollback-workflow-rollbackyml)
+
 ---
 
 ## Tools & Platforms
@@ -91,8 +101,8 @@ Every Sunday at 03:00 UTC, the maintenance pipeline:
 |---|---|
 | [Architecture & Code Structure](docs/ARCHITECTURE.md) | Repository layout, design principles, feature engineering |
 | [Deployment Guide](docs/DEPLOYMENT.md) | Server setup, GitHub secrets, first deploy, emergency redeploy |
-| [CI/CD Pipeline](docs/CI_CD.md) | Workflow diagrams, test suite breakdown, how to add a model |
-| [Maintenance Pipeline](docs/MAINTENANCE.md) | Retraining logic, model registry, promotion rules, runbook |
+| [CI/CD Pipeline](docs/CI_CD.md) | Workflow diagrams, rollback procedure, test suite breakdown |
+| [Maintenance Pipeline](docs/MAINTENANCE.md) | Retraining logic, model registry, promotion rules, rollback runbook |
 | [Training Report](docs/TRAINING_REPORT.md) | Dataset, hyperparameter tuning, evaluation (Spanish) |
 | [Technical Report — Unit II](docs/TECHNICAL_REPORT.md) | Full technical report for the TI team (Spanish) |
 
@@ -109,7 +119,8 @@ Every Sunday at 03:00 UTC, the maintenance pipeline:
 ├── Dockerfile / docker-compose.yml
 ├── .github/workflows/
 │   ├── ci.yml                # CI: test + build + deploy
-│   └── maintenance.yml       # Weekly retraining
+│   ├── maintenance.yml       # Weekly retraining
+│   └── rollback.yml          # Emergency rollback to any tag/SHA
 ├── model/
 │   ├── cardio_risk_model.joblib   # Production model alias
 │   ├── registry.json              # Model version registry

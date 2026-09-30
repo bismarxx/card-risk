@@ -135,15 +135,41 @@ model/
 
 ### Model is producing wrong predictions
 
-1. Check `model/registry.json` → `champion` to see current version and metrics.
-2. Check `history` for any recent suspicious promotion.
-3. **Rollback:**
-   ```bash
-   cp model/registry/model_vN.joblib model/cardio_risk_model.joblib
-   # update "champion" in model/registry.json to point to vN
-   git add model/ && git commit -m "fix: rollback model to vN" && git push
-   ```
-   CI will pick up the push and redeploy automatically.
+Two levels of rollback are available depending on the severity:
+
+#### Level 1 — Automatic Safe Rollback (no action needed)
+
+If the weekly retraining produces a worse model, `decide_promotion()` returns `False`, the pipeline exits with code `1`, and **production is never touched**. No intervention required.
+
+#### Level 2 — Emergency Rollback via GitHub Actions
+
+Use this when a bad model was already promoted and is actively causing wrong predictions in production:
+
+1. Go to **GitHub → Actions → Emergency Rollback → Run workflow**.
+2. Enter the `target_ref` (e.g. `v1.1.0`, `v1.1.1`, or a specific commit SHA). Use `git tag -l` to see available tags.
+3. Enter a brief `reason` for the audit log (e.g. `"Corrupt ingestion from sensor batch #42"`).
+4. Click **Run workflow** — the server reverts in **< 90 seconds**.
+
+The workflow:
+- Runs `git checkout <target_ref>` on the server
+- Rebuilds the Docker container from the historical source (including the `.joblib` at that commit)
+- Prunes stale images
+
+> **After rollback:** Review `model/registry.json` and commit a corrected state to `main` to re-establish a clean history.
+
+See [CI_CD.md → Emergency Rollback Workflow](./CI_CD.md#emergency-rollback-workflow-rollbackyml) for the full details, secrets, and flow diagram.
+
+#### Level 3 — Manual File Rollback (alternative)
+
+If you only need to swap the model file without reverting code:
+
+```bash
+cp model/registry/model_vN.joblib model/cardio_risk_model.joblib
+# update "champion" in model/registry.json to point to vN
+git add model/ && git commit -m "fix: rollback model to vN" && git push
+```
+
+CI picks up the push and redeploys automatically.
 
 ### Weekly retraining fails
 
