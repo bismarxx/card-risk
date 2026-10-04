@@ -53,6 +53,24 @@
       "trained_at": "2026-09-27T04:09:24.914729+00:00",
       "promoted": false,
       "artifact_path": "model/registry/model_v2.joblib"
+    },
+    {
+      "version": "v3",
+      "model_name": "logistic_regression",
+      "metrics": {
+        "accuracy": 0.8525,
+        "precision": 0.8333,
+        "recall": 0.9091,
+        "f1_score": 0.8696,
+        "roc_auc": 0.8972
+      },
+      "best_params": {
+        "model__C": 0.1,
+        "model__solver": "lbfgs"
+      },
+      "trained_at": "2026-10-04T09:17:55.760604+00:00",
+      "promoted": false,
+      "artifact_path": "model/registry/model_v3.joblib"
     }
   ]
 }
